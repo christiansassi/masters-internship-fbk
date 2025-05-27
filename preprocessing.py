@@ -111,7 +111,7 @@ def process_dataset(df: pd.DataFrame, output_src: str):
     # Extract labels and convert them in int
     labels = df["Normal/Attack"].map({"Normal": 0, "Attack": 1}).astype(np.int32)
     
-    # Organize rows in chunks
+    # Organize rows in windows
     num_samples = df.shape[0] - (ROWS_PER_SAMPLE + 1)
     sensor_data = df[SENSORS].to_numpy()
     labels_array = labels.to_numpy()
