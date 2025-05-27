@@ -519,7 +519,14 @@ class Server:
 
 def random_iid_clients(x_autoencoder: np.ndarray, x_threshold: np.ndarray, y_threshold: np.ndarray) -> list:
 
-    #TODO add shuffle
+    # Shuffle autoencoder's data
+    rng = np.random.default_rng(seed=SEED)
+    rng.shuffle(x_autoencoder)
+    
+    # Shuffle indices and apply them to both x and y of the threshold
+    indices = rng.permutation(len(x_threshold))
+    x_threshold = x_threshold[indices]
+    y_threshold = y_threshold[indices]
 
     autoencoder_samples_per_client = len(x_autoencoder) // N_CLIENTS
     threshold_samples_per_client = len(x_threshold) // N_CLIENTS
