@@ -488,7 +488,8 @@ class Server:
 
                 progress_bar.update(task_id=task_id, advance=1)
 
-            #TODO perform aggregation here?
+            # Model aggregation
+            self._aggregate_models(model_label=model_label, clients=selected_clients)
 
             # Evaluate on all clients' test sets
             setattr(self, f"_{model_label}_average_accuracy_score", 0)
@@ -546,8 +547,7 @@ class Server:
             # Select clients for the next round
             selected_clients = self._select_clients(model_label=model_label)
 
-            # Model aggregation
-            self._aggregate_models(model_label=model_label, clients=selected_clients)
+            #TODO perform aggregation here?
 
         # Update global model
         setattr(self, f"_global_{model_label}", clone(src=best_model))
