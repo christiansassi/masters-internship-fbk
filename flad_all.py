@@ -346,7 +346,7 @@ class Server:
             client._threshold = clone(threshold)
 
         # Set FLAD hyperparameters
-        #TODO: use different parameters for autoencoder and threshold
+        #TODO use different parameters for autoencoder and threshold
         self._min_epochs = min_epochs
         self._max_epochs = max_epochs
 
