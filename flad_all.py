@@ -114,6 +114,9 @@ class Client:
             "steps": 0
         }
 
+        # Calculate total number of samples of the autoencoder
+        self._autoencoder_samples = sum(len(self._autoencoder_data[item]) for item in ["x_train", "x_val", "x_test"])
+
         # Threshold model
         self._threshold = None
 
@@ -126,6 +129,9 @@ class Client:
             "epochs": 0,
             "steps": 0
         }
+
+        # Calculate total number of samples of the threshold
+        self._threshold_samples = len(self._threshold_info["x"])
 
     def __str__(self) -> str:
         return self._id
@@ -358,17 +364,50 @@ class Server:
         self._autoencoder_average_accuracy_score = 0
         self._threshold_average_accuracy_score = 0
     
-    def _aggregate_models(self, model_label: str):
+    def _aggregate_models(self, model_label: str, clients: list, weighted: bool = False):
 
-        # Get weights from all the clients
-        all_weights = [getattr(client, f"_{model_label}").get_weights() for client in self._clients]
+        if not len(clients):
+            return
 
-        # Calculate the average for each layer
-        average_weights = [np.mean(layer, axis=0) for layer in zip(*all_weights)]
+        all_weights = [getattr(client, f"_{model_label}").get_weights() for client in clients]
+
+        num_layers = len(all_weights[0])
+        aggregated_weights = [np.zeros_like(all_weights[0][i]) for i in range(num_layers)]
+        total_weight = 0
+
+        if weighted:
+    
+            # Calculate weighted sum
+            for client in clients:
+                
+                # Access samples directly from the client object
+                avg_weight = getattr(client, f"_{model_label}_samples")
+                total_weight = total_weight + avg_weight
+                client_weights = getattr(client, f"_{model_label}").get_weights()
+
+                for i in range(num_layers):
+                    aggregated_weights[i] += client_weights[i] * avg_weight
+        else:
+
+            # Calculate simple average (as in your original `_aggregate_models` but applied to specific clients)
+            for client in clients:
+
+                total_weight = total_weight + 1 # Each client contributes 1 to the total for unweighted average
+                client_weights = getattr(client, f"_{model_label}").get_weights()
+
+                for i in range(num_layers):
+                    aggregated_weights[i] += client_weights[i]
+
+        # Perform the final division to get the average
+        if total_weight <= 0:
+            return
+        
+        averaged_weights = [w / total_weight for w in aggregated_weights]
 
         # Create the aggregated model
         global_model = getattr(self, f"_global_{model_label}")
-        aggregated_model = clone(src=global_model, weights=average_weights)
+
+        aggregated_model = clone(src=global_model, weights=averaged_weights)
 
         # Update global model
         setattr(self, f"_global_{model_label}", aggregated_model)
@@ -449,6 +488,8 @@ class Server:
 
                 progress_bar.update(task_id=task_id, advance=1)
 
+            #TODO perform aggregation here?
+
             # Evaluate on all clients' test sets
             setattr(self, f"_{model_label}_average_accuracy_score", 0)
 
@@ -506,7 +547,7 @@ class Server:
             selected_clients = self._select_clients(model_label=model_label)
 
             # Model aggregation
-            self._aggregate_models(model_label=model_label)
+            self._aggregate_models(model_label=model_label, clients=selected_clients)
 
         # Update global model
         setattr(self, f"_global_{model_label}", clone(src=best_model))
