@@ -1,12 +1,11 @@
-# Imports
+import os
+from os.path import join
+
 import pandas as pd
 import h5py
 import numpy as np
 
 from rich.progress import track
-
-import os
-from os.path import join
 
 from datetime import datetime
 
