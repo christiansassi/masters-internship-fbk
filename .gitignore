@@ -1,0 +1,6 @@
+**/.vscode
+
+**/datasets
+**/wandb
+
+.env
