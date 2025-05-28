@@ -6,14 +6,25 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+logging.info("Importing types")
 from types import SimpleNamespace
+
+logging.info("Importing uuid")
 from uuid import uuid4
+
+logging.info("Importing shutil")
 import shutil
 
+logging.info("Importing rich")
 from rich.progress import Progress
+
+logging.info("Importing wandb")
 import wandb
 
+logging.info("Importing h5py")
 import h5py
+
+logging.info("Importing numpy")
 import numpy as np
 
 # Configuring env
@@ -33,13 +44,13 @@ import dotenv
 dotenv.load_dotenv()
 
 # Scikit-learn
-logging.info("Loading Scikit-learn")
+logging.info("Importing sklearn")
 
 from sklearn.metrics import accuracy_score, f1_score, r2_score
 from sklearn.model_selection import train_test_split
 
 # Keras
-logging.info("Loading Keras")
+logging.info("Importing keras")
 
 from keras import Input
 from keras.models import Model, load_model, clone_model  # type: ignore
@@ -475,8 +486,6 @@ class Server:
 
             setattr(self, f"_{model_label}_average_accuracy_score", getattr(self, f"_{model_label}_average_accuracy_score") / len(self._clients))
 
-            progress_bar.stop()
-
             #? Logging code
             display_digits = get_best_round_digit(getattr(self, f"_{model_label}_average_accuracy_score"), max_accuracy)
             #? ============
@@ -486,9 +495,16 @@ class Server:
                 max_accuracy = getattr(self, f"_{model_label}_average_accuracy_score")
                 best_model = clone(getattr(self, f"_global_{model_label}"))
                 stopping_counter = 0
+
+                # Save best autoencoder model
+                progress_bar.update(task_id=task_id, description=f"Saving to {eval(f'{model_label.upper()}_MODEL')}")
+                best_model.save(eval(f'{model_label.upper()}_MODEL'))
             
             else:
                 stopping_counter = stopping_counter + 1
+
+            progress_bar.update(task_id=task_id, advance=1)
+            progress_bar.stop()
 
             #? Logging code
             clear_console()
