@@ -1,3 +1,24 @@
+# Configure logging
+import logging
+logging.basicConfig(
+    format="[%(asctime)s][%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+    level=logging.INFO
+)
+
+from types import SimpleNamespace
+from uuid import uuid4
+import shutil
+
+from rich.progress import Progress
+import wandb
+
+import h5py
+import numpy as np
+
+# Configuring env
+logging.info("Setting up the environment")
+
 import os
 from os.path import join, exists
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
@@ -5,32 +26,26 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["WANDB_SILENT"] = "true"
 os.environ["WANDB_CONSOLE"] = "off"
 
-from types import SimpleNamespace
-from uuid import uuid4
-import shutil
+# Loading env
+logging.info("Loading the environment")
 
 import dotenv
-dotenv.load_dotenv() # load env
-
-import h5py
-import numpy as np
+dotenv.load_dotenv()
 
 # Scikit-learn
-from sklearn.metrics import accuracy_score, f1_score
+logging.info("Loading Scikit-learn")
+
+from sklearn.metrics import accuracy_score, f1_score, r2_score
 from sklearn.model_selection import train_test_split
 
 # Keras
+logging.info("Loading Keras")
+
 from keras import Input
 from keras.models import Model, load_model, clone_model  # type: ignore
 from keras.layers import Conv1D, MaxPooling1D, UpSampling1D, Reshape, Dense  # type: ignore
 from keras.optimizers import Adam  # type: ignore
 from keras.losses import BinaryCrossentropy  # type: ignore
-
-# TensorFlow Keras
-from tensorflow.keras.optimizers import Adam  # type: ignore
-
-from rich.progress import Progress
-import wandb
 
 # FLAD hyperparameters (Section 5, Table IV)
 MIN_EPOCHS: int = 1
@@ -76,9 +91,37 @@ OUTPUT_ATTACK: str = join(SWAT_2015, "processed", "SWaT_Dataset_Attack.hdf5") # 
 AUTOENCODER_MODEL: str = join(SWAT_2015, "models", "autoencoder.keras") # Autoencoder model
 THRESHOLD_MODEL: str = join(SWAT_2015, "models", "threshold.keras") # Threshold model
 
+TRAIN_RATIO: float = 0.60 # 60% for training
+VAL_EACH_RATIO: float = 0.10 # 10% for each of the two validation sets (20% total)
+TEST_EACH_RATIO: float = 0.10 # 10% for each of the two test sets (20% total)
+
 # Lambdas
 clear_console = lambda: os.system("cls" if os.name == "nt" else "clear")
 clear_wandb = lambda: shutil.rmtree("wandb") if exists("wandb") else None
+
+def get_best_round_digit(n1, n2):
+
+    n1 = str(abs(n1))
+    n2 = str(abs(n2))
+
+    if "." in n1 and "." not in n2:
+        return 4
+    
+    if "." not in n1 and "." in n2:
+        return 4
+
+    n1 = n1.split(".")[-1]
+    n2 = n2.split(".")[-1]
+
+    result = []
+
+    for a, b in zip(n1, n2):
+        if a == b:
+            result.append(a)
+        else:
+            break
+
+    return len(''.join(result)) + 1
 
 def clone(src, weights = None):
 
@@ -114,14 +157,12 @@ class Client:
             "steps": 0
         }
 
-        # Calculate total number of samples of the autoencoder
-        self._autoencoder_samples = sum(len(self._autoencoder_data[item]) for item in ["x_train", "x_val", "x_test"])
-
         # Threshold model
         self._threshold = None
 
         # Threshold initial data (it will be modified after the autoencoder training)
         self._threshold_data = threshold_data
+        self._threshold_data.update({"dummy": None})
 
         # Threshold info (used by FLAD)
         self._threshold_info = {
@@ -130,8 +171,8 @@ class Client:
             "steps": 0
         }
 
-        # Calculate total number of samples of the threshold
-        self._threshold_samples = len(self._threshold_info["x"])
+        # Calculate total number of samples
+        self._samples = sum(len(self._autoencoder_data[item]) * factor for item, factor in [("x_train", 1), ("x_val", 2), ("x_test", 2)])
 
     def __str__(self) -> str:
         return self._id
@@ -167,8 +208,11 @@ class Client:
             verbose=0
         )
 
-    def autoencoder_evaluate(self) -> float:
+    def autoencoder_evaluate(self, model) -> float:
         
+        # Clone the input model
+        self._autoencoder = clone(src=model)
+
         # Evaluate autoencoder's performances
         y_pred = self._autoencoder.predict(
             self._autoencoder_data["x_test"],
@@ -187,69 +231,6 @@ class Client:
         return self._autoencoder_info["accuracy_score"]
 
     def threshold_train(self, model) -> None:
-        
-        def split(_x) -> tuple:
-            
-            if not len(_x):
-                _empty_shape = (0,) + _x.shape[1:]
-                return np.empty(_empty_shape), np.empty(_empty_shape), np.empty(_empty_shape)
-
-            # Train 60%
-            # Val 20%
-            # Test 20%
-
-            _train, _test = train_test_split(
-                _x,
-                test_size=0.2,
-                random_state=SEED
-            )
-
-            _train, _val = train_test_split(
-                _train,
-                test_size=0.2,
-                random_state=SEED
-            )
-
-            return _train, _val, _test
-
-        def calculate_reconstruction_errors(_x) -> np.ndarray:
-
-            if not len(_x):
-                return np.array([]) # Returns (0,) shape
-            
-            # Calculate the reconstruction error based on the trained autoencoder
-            _reconstructions = self._autoencoder.predict(
-                _x,
-                verbose=0
-            )
-
-            _errors = np.mean(np.square(_x - _reconstructions), axis=(1, 2))
-
-            # Ensure errors is always at least 1D, even if it comes out as a scalar
-            if _errors.ndim == 0:
-                _errors = _errors.reshape(1)
-
-            return _errors
-            
-        def prepare_x_y(_x_benign, _x_malicious) -> tuple:
-            
-            # Use the benign samples to extract all the associated reconstruction errors
-            _benign_errors = calculate_reconstruction_errors(_x=_x_benign)
-            _benign_labels = np.zeros(len(_benign_errors))
-
-            # Use the malicious samples to extract all the associated reconstruction errors
-            _malicious_errors = calculate_reconstruction_errors(_x=_x_malicious)
-            _malicious_labels = np.ones(len(_malicious_errors))
-
-            # The input of the threshold model will be the combination of the reconstruction errors
-            _x = np.concatenate((_benign_errors, _malicious_errors))
-            _x = _x.reshape(-1, 1)
-
-            # The output of the threshold model will be 0 or 1, 
-            # depending if a reconstruction error refers to benign or malicious sample
-            _y = np.concatenate((_benign_labels, _malicious_labels)).astype(int)
-
-            return _x, _y
 
         # Clone the input model
         self._threshold = clone(src=model)
@@ -261,38 +242,30 @@ class Client:
         if epochs <= 0 or steps <= 0:
             return
         
-        # If it is the first time the model is trained
-        if len(self._threshold_data) != 6:
-            
-            x = self._threshold_data["x"]
-            y = self._threshold_data["y"]
-
-            # Split benign and malicious samples
-            x_benign = x[y == 0]
-            x_malicious = x[y == 1]
-            
-            # Split in train, val and test
-            x_train_benign, x_val_benign, x_test_benign = split(_x=x_benign)
-            x_train_malicious, x_val_malicious, x_test_malicious = split(_x=x_malicious)
-
-            x_train, y_train = prepare_x_y(_x_benign=x_train_benign, _x_malicious=x_train_malicious)
-            x_val, y_val = prepare_x_y(_x_benign=x_val_benign, _x_malicious=x_val_malicious)
-            x_test, y_test = prepare_x_y(_x_benign=x_test_benign, _x_malicious=x_test_malicious)
-
-            # Use the same structure as the one used for the autoencoder
-            self._threshold_data = {
-                "x_train": x_train,
-                "y_train": y_train,
-
-                "x_val": x_val,
-                "y_val": y_val,
-
-                "x_test": x_test,
-                "y_test": y_test
-            }
-        
         # Calculate batch size
         batch_size = int(max(len(self._threshold_data["x_train"]) // steps, 1))
+
+        if "dummy" in self._threshold_data:
+            
+            # Extract reconstruction errors from train set
+            self._threshold_data["x_train"] = self._autoencoder.predict(
+                self._threshold_data["x_train"],
+                verbose=0
+            )
+
+            # Extract reconstruction errors from validation set
+            self._threshold_data["x_val"] = self._autoencoder.predict(
+                self._threshold_data["x_val"],
+                verbose=0
+            )
+
+            # Extract reconstruction errors from test set
+            self._threshold_data["x_test"] = self._autoencoder.predict(
+                self._threshold_data["x_test"],
+                verbose=0
+            )
+
+            del self._threshold_data["dummy"]
 
         # Train the threshold model
         self._threshold.fit(
@@ -310,23 +283,18 @@ class Client:
             verbose=0
         )
 
-    def threshold_evaluate(self) -> float:
+    def threshold_evaluate(self, model) -> float:
         
+        # Clone the input model
+        self._threshold = clone(src=model)
+
         # Evaluate threshold's performances
-        y_pred_proba = self._threshold.predict(
+        y_pred = self._threshold.predict(
             self._threshold_data["x_test"],
             verbose=0
         )
 
-        # Convert each probability into one of the two classes:
-        # - Benign 0
-        # - Malicious 1
-        #TODO change 0.5. More tests needed
-        y_pred_class = (y_pred_proba > 0.5).astype(int)
-
-        # Use the accuracy score to evaluate the performances
-        #TODO use F1 score instead?
-        score = accuracy_score(self._threshold_data["y_test"], y_pred_class)
+        score = r2_score(self._threshold_data["x_test"], y_pred)
         
         self._threshold_info["accuracy_score"] = score
 
@@ -381,7 +349,7 @@ class Server:
             for client in clients:
                 
                 # Access samples directly from the client object
-                avg_weight = getattr(client, f"_{model_label}_samples")
+                avg_weight = client._samples
                 total_weight = total_weight + avg_weight
                 client_weights = getattr(client, f"_{model_label}").get_weights()
 
@@ -471,7 +439,7 @@ class Server:
             round_num = round_num + 1
 
             #? Logging code
-            print(f"[{model_label.upper()}] Round #{round_num} | {stopping_counter} / {self._patience}\n")
+            print(f"[{model_label.upper()}] Round #{round_num} | {len(selected_clients)} / {len(self._clients)} | {stopping_counter} / {self._patience}\n")
             progress_bar = Progress()
             progress_bar.start()
             task_id = progress_bar.add_task(total=len(selected_clients) + len(self._clients), description=f"Running round #{round_num}")
@@ -499,7 +467,7 @@ class Server:
                 progress_bar.update(task_id=task_id, description=f"Evaluating {client} ({index + 1} / {len(self._clients)})")
 
                 evaluate_method = getattr(client, f"{model_label}_evaluate")
-                accuracy = evaluate_method()
+                accuracy = evaluate_method(model=getattr(self, f"_global_{model_label}"))
 
                 setattr(self, f"_{model_label}_average_accuracy_score", getattr(self, f"_{model_label}_average_accuracy_score") + accuracy)
 
@@ -508,6 +476,10 @@ class Server:
             setattr(self, f"_{model_label}_average_accuracy_score", getattr(self, f"_{model_label}_average_accuracy_score") / len(self._clients))
 
             progress_bar.stop()
+
+            #? Logging code
+            display_digits = get_best_round_digit(getattr(self, f"_{model_label}_average_accuracy_score"), max_accuracy)
+            #? ============
 
             # Check for improvements
             if getattr(self, f"_{model_label}_average_accuracy_score") > max_accuracy:
@@ -521,16 +493,16 @@ class Server:
             #? Logging code
             clear_console()
 
-            print(f"[{model_label.upper()}] Round #{round_num} | {stopping_counter} / {self._patience}\n")
+            print(f"[{model_label.upper()}] Round #{round_num} | {len(selected_clients)} / {len(self._clients)} | {stopping_counter} / {self._patience}\n")
 
             for client in self._clients:
 
                 symbol = "🟢" if client in selected_clients else "🔴"
 
-                print(f"{symbol} {client}: {round(abs(getattr(client, f'_{model_label}_info')['accuracy_score']),4)}")
+                print(f"{symbol} {client}: {round(abs(getattr(client, f'_{model_label}_info')['accuracy_score']),display_digits)}")
             
-            print(f"\nScore: {round(abs(getattr(self, f'_{model_label}_average_accuracy_score')), 4)}")
-            print(f"Best Score: {round(abs(max_accuracy), 4)}\n\n\n")
+            print(f"\nScore: {round(abs(getattr(self, f'_{model_label}_average_accuracy_score')), display_digits)}")
+            print(f"Best Score: {round(abs(max_accuracy), display_digits)}\n\n\n")
 
             run.log({
                 "best": round(abs(max_accuracy), 4),
@@ -547,8 +519,6 @@ class Server:
             # Select clients for the next round
             selected_clients = self._select_clients(model_label=model_label)
 
-            #TODO perform aggregation here?
-
         # Update global model
         setattr(self, f"_global_{model_label}", clone(src=best_model))
 
@@ -558,61 +528,64 @@ class Server:
 
         return best_model
 
-def random_iid_clients(x_autoencoder: np.ndarray, x_threshold: np.ndarray, y_threshold: np.ndarray) -> list:
+def random_iid_clients(x: np.ndarray) -> list:
 
-    # Shuffle autoencoder's data
+    # Shuffle data
     rng = np.random.default_rng(seed=SEED)
-    rng.shuffle(x_autoencoder)
-    
-    # Shuffle indices and apply them to both x and y of the threshold
-    indices = rng.permutation(len(x_threshold))
-    x_threshold = x_threshold[indices]
-    y_threshold = y_threshold[indices]
+    rng.shuffle(x)
 
-    autoencoder_samples_per_client = len(x_autoencoder) // N_CLIENTS
-    threshold_samples_per_client = len(x_threshold) // N_CLIENTS
+    samples_per_client = len(x) // N_CLIENTS
 
     clients = []
 
     # Each client will receive a specific amount of data
     for i in range(N_CLIENTS):
 
-        autoencoder_start = i * autoencoder_samples_per_client
-        autoencoder_end = (i+ 1) * autoencoder_samples_per_client if i < N_CLIENTS - 1 else len(x_autoencoder)
+        autoencoder_start = i * samples_per_client
+        autoencoder_end = (i+ 1) * samples_per_client if i < N_CLIENTS - 1 else len(x)
 
-        threshold_start = i * threshold_samples_per_client
-        threshold_end = (i+ 1) * threshold_samples_per_client if i < N_CLIENTS - 1 else len(x_threshold)
+        chunk_autoencoder = x[autoencoder_start:autoencoder_end]
 
-        chunk_autoencoder = x_autoencoder[autoencoder_start:autoencoder_end]
-
-        chunk_threshold_x = x_threshold[threshold_start:threshold_end]
-        chunk_threshold_y = y_threshold[threshold_start:threshold_end]
-
-        x_train, x_test = train_test_split(
-            chunk_autoencoder,
-            test_size=0.2,
-            random_state=SEED
+        # Step 1: Split into the main training set and a remainder for all validation/test sets
+        # test_size here is the proportion of the original data that will be in the remainder
+        x_train, remainder_for_val_test = train_test_split(
+            chunk_autoencoder, test_size=(1 - TRAIN_RATIO), random_state=SEED
         )
 
-        x_train, x_val = train_test_split(
-            x_train,
-            test_size=0.2,
-            random_state=SEED
+        # Step 2: Split the 'remainder_for_val_test' into two equal pools.
+        # This ensures that x_val1 and x_val2 will be equal, and x_test1 and x_test2 will be equal.
+        # test_size=0.5 means it splits the current array into two halves.
+        val_test_pool_1, val_test_pool_2 = train_test_split(
+            remainder_for_val_test, test_size=0.5, random_state=SEED
         )
 
-        assert all(len(obj) > 0 for obj in [x_train, x_val, x_test, chunk_threshold_x, chunk_threshold_y])
+        # Step 3: From the first pool (val_test_pool_1), get x_val1 and x_test1
+        # The test_size here is the proportion of 'test_each_ratio' relative to the size of this current pool.
+        # Each pool (val_test_pool_1 and val_test_pool_2) contains (val_each_ratio + test_each_ratio)
+        # of the original data. So, the relative test_size is test_each_ratio / (val_each_ratio + test_each_ratio).
+        test_proportion_in_pool = TEST_EACH_RATIO / (VAL_EACH_RATIO + TEST_EACH_RATIO)
+        x_val1, x_test1 = train_test_split(
+            val_test_pool_1, test_size=test_proportion_in_pool, random_state=SEED
+        )
+
+        # Step 4: From the second pool (val_test_pool_2), get x_val2 and x_test2
+        # Use the exact same proportion as in Step 3 to ensure equal sizes for val and test sets.
+        x_val2, x_test2 = train_test_split(
+            val_test_pool_2, test_size=test_proportion_in_pool, random_state=SEED
+        )
 
         clients.append(Client(
 
             autoencoder_data={
                 "x_train": x_train,
-                "x_val": x_val,
-                "x_test": x_test
+                "x_val": x_val1,
+                "x_test": x_test1
             },
 
             threshold_data={
-                "x": chunk_threshold_x,
-                "y": chunk_threshold_y
+                "x_train": x_train,
+                "x_val": x_val2,
+                "x_test": x_test2
             }
         ))
 
@@ -649,14 +622,19 @@ def random_autoencoder_model(x_shape: tuple):
 
 def random_threshold_model():
 
-    input_layer = Input(shape=(1,)) 
+    input_layer = Input(shape=(1,))
     x = Dense(32, activation="relu")(input_layer)
     x = Dense(16, activation="relu")(x)
-    output_layer = Dense(1, activation="sigmoid")(x)
+    
+    # Output layer predicts a continuous value (the "normal" threshold)
+    # No activation or "linear" activation for regression
+    output_layer = Dense(1, activation="linear")(x) 
 
     model = Model(inputs=input_layer, outputs=output_layer)
-    model.compile(optimizer=Adam(learning_rate=LEARNING_RATE), loss=BinaryCrossentropy(), metrics=["accuracy"])
-
+    
+    # Use Mean Squared Error (MSE) for regression
+    model.compile(optimizer=Adam(learning_rate=LEARNING_RATE), loss="mse", metrics=["mae"])
+    
     return model
 
 if __name__ == "__main__":
@@ -668,37 +646,41 @@ if __name__ == "__main__":
     #      - Based on attack type (36 different attacks). How should we handle surrounding samples (e.g., normal ones)? (by FLAD)
 
     # Load dataset
+    logging.info(f"Loading {OUTPUT_NORMAL}")
+
     hf = h5py.File(name=OUTPUT_NORMAL)
-    x_autoencoder = np.array(hf["x"])
-
-    hf = h5py.File(name=OUTPUT_ATTACK)
-    x_threshold = np.array(hf["x"])
-    y_threshold = np.array(hf["y"])
-
-    # Create I.I.D. clients
-    clients = random_iid_clients(
-        x_autoencoder=x_autoencoder,
-        x_threshold=x_threshold,
-        y_threshold=y_threshold
-    )
+    x = np.array(hf["x"])
 
     # Create a random autoencoder model
-    autoencoder = random_autoencoder_model(x_shape=x_autoencoder.shape[1:])
+    logging.info("Creating autoencoder model")
+
+    autoencoder = random_autoencoder_model(x_shape=x.shape[1:])
     # autoencoder = load_model(AUTOENCODER_MODEL)
 
     # Create a random threshold model
+    logging.info("Creating threshold model")
+
     threshold = random_threshold_model()
+    
+    # Create I.I.D. clients
+    logging.info(f"Initializing {N_CLIENTS} client{'s' if N_CLIENTS > 1 else ''}")
+
+    clients = random_iid_clients(x=x)
 
     # Create the server
+    logging.info("Initializing server")
+
     server = Server(autoencoder=autoencoder, threshold=threshold, clients=clients)
 
     # Start wandb
     run = wandb_init(name="Autoencoder model")
 
-    # # Federated Learning for the autoencoder
+    # Federated Learning for the autoencoder
     autoencoder = server.federated_learning(model_label="autoencoder")
 
     # Save best autoencoder model
+    logging.info(f"Saving {AUTOENCODER_MODEL}")
+
     autoencoder.save(AUTOENCODER_MODEL)
 
     run.finish()
@@ -710,6 +692,8 @@ if __name__ == "__main__":
     threshold = server.federated_learning(model_label="threshold")
 
     # Save best autoencoder model
+    logging.info(f"Saving {THRESHOLD_MODEL}")
+
     threshold.save(THRESHOLD_MODEL)
 
     # Stop wandb
