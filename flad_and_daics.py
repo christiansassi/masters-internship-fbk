@@ -12,6 +12,9 @@ from types import SimpleNamespace
 logging.info("Importing uuid")
 from uuid import uuid4
 
+logging.info("Importing threading")
+from threading import Thread, Lock
+
 logging.info("Importing shutil")
 import shutil
 
@@ -46,7 +49,7 @@ dotenv.load_dotenv()
 # Scikit-learn
 logging.info("Importing sklearn")
 
-from sklearn.metrics import accuracy_score, f1_score, r2_score
+from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 
 # Keras
@@ -54,9 +57,8 @@ logging.info("Importing keras")
 
 from keras import Input
 from keras.models import Model, load_model, clone_model  # type: ignore
-from keras.layers import Conv1D, MaxPooling1D, UpSampling1D, Reshape, Dense  # type: ignore
+from keras.layers import Conv1D, MaxPooling1D, UpSampling1D, Dense  # type: ignore
 from keras.optimizers import Adam  # type: ignore
-from keras.losses import BinaryCrossentropy  # type: ignore
 
 # FLAD hyperparameters (Section 5, Table IV)
 MIN_EPOCHS: int = 1
@@ -434,6 +436,62 @@ class Server:
     
     def federated_learning(self, model_label: str):
         
+        progress_bar = None
+        task_id = None
+
+        _evaluate_clients_lock = Lock()
+        _progress_bar_lock = Lock()
+
+        def _partition_clients(_clients: list[Client]) -> list[list]:
+
+            _n = os.cpu_count() - 1
+            _k = len(_clients)
+
+            _result = []
+
+            if len(_clients) >= _n:
+
+                _avg = len(_clients) // _n
+                _remainder = len(_clients) % _n
+                _start = 0
+
+                for i in range(_n):
+                    _end = _start + _avg + (1 if i < _remainder else 0)
+                    _result.append(_clients[_start:_end])
+                    _start = _end
+
+            else:
+
+                _result = [[] for _ in range(_k)]
+
+                for i, item in enumerate(_clients):
+                    _result[i % _k].append(item)
+
+            return _result
+
+        def _update_clients(_clients: list[Client]):
+
+            for index, client in enumerate(_clients):
+
+                train_method = getattr(client, f"{model_label}_train")
+                train_method(model=getattr(self, f"_global_{model_label}"))
+
+                with _progress_bar_lock:
+                    progress_bar.update(task_id=task_id, advance=1)
+
+        def _evaluate_clients(_clients: list[Client]):
+
+            for index, client in enumerate(_clients):
+
+                evaluate_method = getattr(client, f"{model_label}_evaluate")
+                accuracy = evaluate_method(model=getattr(self, f"_global_{model_label}"))
+
+                with _evaluate_clients_lock:
+                    setattr(self, f"_{model_label}_average_accuracy_score", getattr(self, f"_{model_label}_average_accuracy_score") + accuracy)
+
+                with _progress_bar_lock:
+                    progress_bar.update(task_id=task_id, advance=1)
+
         clear_console()
 
         # All the clients partecipate in the first round
@@ -456,33 +514,62 @@ class Server:
             task_id = progress_bar.add_task(total=len(selected_clients) + len(self._clients), description=f"Running round #{round_num}")
             #? ============
 
-            # Client updates
+            #! Client updates
             # The global model is given to each selected client and trained on their data
-            for index, client in enumerate(selected_clients):
 
-                progress_bar.update(task_id=task_id, description=f"Training {client} ({index + 1} / {len(selected_clients)})")
+            # Single thread
+            # for index, client in enumerate(selected_clients):
 
-                train_method = getattr(client, f"{model_label}_train")
-                train_method(model=getattr(self, f"_global_{model_label}"))
+            #     progress_bar.update(task_id=task_id, description=f"Training {client} ({index + 1} / {len(selected_clients)})")
 
-                progress_bar.update(task_id=task_id, advance=1)
+            #     train_method = getattr(client, f"{model_label}_train")
+            #     train_method(model=getattr(self, f"_global_{model_label}"))
+
+            #     progress_bar.update(task_id=task_id, advance=1)
+
+            # Multi-thread
+            progress_bar.update(task_id=task_id, description=f"Training {len(selected_clients)} client{'s' if len(selected_clients) > 1 else ''}")
+
+            threads = []
+
+            for chunk in _partition_clients(_clients=selected_clients):
+                thread = Thread(target=_update_clients, args=(chunk, ))
+                thread.start()
+                threads.append(thread)
+            
+            for thread in threads:
+                thread.join()
 
             # Model aggregation
             self._aggregate_models(model_label=model_label, clients=selected_clients)
 
-            # Evaluate on all clients' test sets
+            #! Evaluate on all clients' test sets
             setattr(self, f"_{model_label}_average_accuracy_score", 0)
 
-            for index, client in enumerate(self._clients):
+            # Single thread
+            # for index, client in enumerate(self._clients):
 
-                progress_bar.update(task_id=task_id, description=f"Evaluating {client} ({index + 1} / {len(self._clients)})")
+            #     progress_bar.update(task_id=task_id, description=f"Evaluating {client} ({index + 1} / {len(self._clients)})")
 
-                evaluate_method = getattr(client, f"{model_label}_evaluate")
-                accuracy = evaluate_method(model=getattr(self, f"_global_{model_label}"))
+            #     evaluate_method = getattr(client, f"{model_label}_evaluate")
+            #     accuracy = evaluate_method(model=getattr(self, f"_global_{model_label}"))
 
-                setattr(self, f"_{model_label}_average_accuracy_score", getattr(self, f"_{model_label}_average_accuracy_score") + accuracy)
+            #     setattr(self, f"_{model_label}_average_accuracy_score", getattr(self, f"_{model_label}_average_accuracy_score") + accuracy)
 
-                progress_bar.update(task_id=task_id, advance=1)
+            #     progress_bar.update(task_id=task_id, advance=1)
+
+            # Multi-thread
+            progress_bar.update(task_id=task_id, description=f"Evaluating {len(self._clients)} client{'s' if len(self._clients) > 1 else ''}")
+
+            threads = []
+
+            for chunk in _partition_clients(_clients=self._clients):
+                thread = Thread(target=_evaluate_clients, args=(chunk, ))
+                thread.start()
+                threads.append(thread)
+            
+            for thread in threads:
+                thread.join()
 
             setattr(self, f"_{model_label}_average_accuracy_score", getattr(self, f"_{model_label}_average_accuracy_score") / len(self._clients))
 
