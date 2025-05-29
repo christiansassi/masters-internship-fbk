@@ -70,7 +70,7 @@ MAX_STEPS: int = 1000
 PATIENCE: int = 25
 
 # Test hyperparameters
-N_CLIENTS: int = 30
+N_CLIENTS: int = os.cpu_count() - 1
 SEED: int = 42
 
 DROPOUT_RATE: float = 0
