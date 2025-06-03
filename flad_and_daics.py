@@ -60,6 +60,17 @@ from keras.models import Model, load_model, clone_model  # type: ignore
 from keras.layers import Conv1D, MaxPooling1D, UpSampling1D, Dense  # type: ignore
 from keras.optimizers import Adam  # type: ignore
 
+# TensorFlow
+logging.info("Importing tensorflow")
+
+import tensorflow as tf
+
+# Script args
+MULTITHREAD: bool = True
+
+USE_GPU: bool = True
+USE_GPU = USE_GPU if len(tf.config.list_logical_devices("GPU")) > 0 else False
+
 # FLAD hyperparameters (Section 5, Table IV)
 MIN_EPOCHS: int = 1
 MAX_EPOCHS: int = 5
@@ -111,6 +122,7 @@ TEST_EACH_RATIO: float = 0.10 # 10% for each of the two test sets (20% total)
 # Lambdas
 clear_console = lambda: os.system("cls" if os.name == "nt" else "clear")
 clear_wandb = lambda: shutil.rmtree("wandb") if exists("wandb") else None
+cpu_count = lambda: os.cpu_count() - 1 if MULTITHREAD else 1
 
 def get_best_round_digit(n1, n2):
 
@@ -444,7 +456,7 @@ class Server:
 
         def _partition_clients(_clients: list[Client]) -> list[list]:
 
-            _n = os.cpu_count() - 1
+            _n = cpu_count()
             _k = len(_clients)
 
             _result = []
@@ -511,7 +523,7 @@ class Server:
             print(f"[{model_label.upper()}] Round #{round_num} | {len(selected_clients)} / {len(self._clients)} | {stopping_counter} / {self._patience}\n")
             progress_bar = Progress()
             progress_bar.start()
-            task_id = progress_bar.add_task(total=len(selected_clients) + len(self._clients), description=f"Running round #{round_num}")
+            task_id = progress_bar.add_task(total=len(selected_clients) + len(self._clients) + 1, description=f"Running round #{round_num}")
             #? ============
 
             #! Client updates
