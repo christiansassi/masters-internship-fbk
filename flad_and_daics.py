@@ -18,6 +18,9 @@ from threading import Thread, Lock
 logging.info("Importing shutil")
 import shutil
 
+logging.info("Importing signal")
+import signal
+
 logging.info("Importing rich")
 from rich.progress import Progress
 
@@ -356,6 +359,14 @@ class Server:
 
         self._autoencoder_average_accuracy_score = 0
         self._threshold_average_accuracy_score = 0
+
+        # Handler for CTRL+C
+        self.stop_federated_learning = False
+
+        def signal_handler(sig, frame):
+            self.stop_federated_learning = True
+
+        signal.signal(signal.SIGINT, signal_handler)
     
     def _aggregate_models(self, model_label: str, clients: list, weighted: bool = False):
 
@@ -514,7 +525,7 @@ class Server:
         stopping_counter = 0
         round_num = 0
 
-        while True:
+        while not self.stop_federated_learning:
 
             # Keep track of each round
             round_num = round_num + 1
@@ -770,7 +781,7 @@ if __name__ == "__main__":
     logging.info("Creating autoencoder model")
 
     autoencoder = random_autoencoder_model(x_shape=x.shape[1:])
-    # autoencoder = load_model(AUTOENCODER_MODEL)
+    autoencoder = load_model(AUTOENCODER_MODEL)
 
     # Create a random threshold model
     logging.info("Creating threshold model")
@@ -787,18 +798,18 @@ if __name__ == "__main__":
 
     server = Server(autoencoder=autoencoder, threshold=threshold, clients=clients)
 
-    # Start wandb
-    run = wandb_init(name="Autoencoder model")
+    # # Start wandb
+    # run = wandb_init(name="Autoencoder model")
 
-    # Federated Learning for the autoencoder
-    autoencoder = server.federated_learning(model_label="autoencoder")
+    # # Federated Learning for the autoencoder
+    # autoencoder = server.federated_learning(model_label="autoencoder")
 
-    # Save best autoencoder model
-    logging.info(f"Saving {AUTOENCODER_MODEL}")
+    # # Save best autoencoder model
+    # logging.info(f"Saving {AUTOENCODER_MODEL}")
 
-    autoencoder.save(AUTOENCODER_MODEL)
+    # autoencoder.save(AUTOENCODER_MODEL)
 
-    run.finish()
+    # run.finish()
 
     # Start wandb
     run = wandb_init(name="Threshold model")
