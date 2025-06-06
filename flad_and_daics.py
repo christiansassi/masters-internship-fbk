@@ -328,7 +328,12 @@ class Client:
             verbose=0
         )
 
-        score = r2_score(self._threshold_data["x_test"], y_pred)
+        # Calculate the error
+        # Note: The error is negated because this implementation follows FLAD,
+        # where the objective is to maximize accuracy. In contrast, here we aim to minimize
+        # the error. By converting the error to a negative value, we align with FLAD's
+        # maximization logic while still using the original loss criteria
+        score = -np.mean(np.square(self._threshold_data["x_test"] - y_pred))
         
         self._threshold_info["accuracy_score"] = score
 
