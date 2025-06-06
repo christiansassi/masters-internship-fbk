@@ -276,21 +276,27 @@ class Client:
         if "dummy" in self._threshold_data:
             
             # Extract reconstruction errors from train set
-            self._threshold_data["x_train"] = self._autoencoder.predict(
-                self._threshold_data["x_train"],
-                verbose=0
+            self._threshold_data["x_train"] = np.mean(np.square(self._threshold_data["x_train"] - self._autoencoder.predict(
+                    self._threshold_data["x_train"],
+                    verbose=0
+                )),
+                axis=(1,2)
             )
 
             # Extract reconstruction errors from validation set
-            self._threshold_data["x_val"] = self._autoencoder.predict(
-                self._threshold_data["x_val"],
-                verbose=0
+            self._threshold_data["x_val"] = np.mean(np.square(self._threshold_data["x_val"] - self._autoencoder.predict(
+                    self._threshold_data["x_val"],
+                    verbose=0
+                )),
+                axis=(1,2)
             )
 
             # Extract reconstruction errors from test set
-            self._threshold_data["x_test"] = self._autoencoder.predict(
-                self._threshold_data["x_test"],
-                verbose=0
+            self._threshold_data["x_test"] = np.mean(np.square(self._threshold_data["x_test"] - self._autoencoder.predict(
+                    self._threshold_data["x_test"],
+                    verbose=0
+                )),
+                axis=(1,2)
             )
 
             del self._threshold_data["dummy"]
@@ -298,14 +304,14 @@ class Client:
         # Train the threshold model
         self._threshold.fit(
             self._threshold_data["x_train"],
-            self._threshold_data["y_train"],
+            self._threshold_data["x_train"],
 
             epochs=epochs,
             batch_size=batch_size,
 
             validation_data=(
                 self._threshold_data["x_val"], 
-                self._threshold_data["y_val"]
+                self._threshold_data["x_val"]
             ),
 
             verbose=0
