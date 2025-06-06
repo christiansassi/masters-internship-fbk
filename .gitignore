@@ -1,9 +1,14 @@
+# Visual Studio Code
 **/.vscode
 
+# Directories
 **/datasets
 **/keys
 **/wandb
 
-.env
+# Extensions
+**.env
+**.drawio
 
+# Files
 daics.py
