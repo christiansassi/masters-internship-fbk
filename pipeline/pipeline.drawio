@@ -1,19 +1,19 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36 Edg/137.0.0.0" version="26.0.6">
   <diagram name="Page-1" id="iTcKblv_Ajy99_gno5pj">
-    <mxGraphModel dx="9022" dy="3164" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" background="light-dark(#FFFFFF,#0D1117)" math="0" shadow="0">
+    <mxGraphModel dx="9022" dy="3164" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" background="#FFFFFF" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="DDEnpmRq-jySMfK6d3gm-47" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-1" target="DDEnpmRq-jySMfK6d3gm-8">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-1" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Autoencoder Model&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-1" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Autoencoder Model&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="40" y="760" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-52" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-2" target="DDEnpmRq-jySMfK6d3gm-22">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-2" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Threshold Model&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-2" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Threshold Model&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="40" y="1360" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-3" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;&lt;b style=&quot;font-family: &amp;quot;Lucida Console&amp;quot;; text-align: center;&quot;&gt;&lt;font&gt;reconstruction_errors&lt;/font&gt;&lt;/b&gt;&lt;/h1&gt;&lt;p style=&quot;&quot;&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;The autoencoder produces an output with shape (X, Y, Z).&amp;nbsp;&lt;/font&gt;&lt;span style=&quot;font-size: 16px; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;The reconstruction error is derived by first calculating the Mean Squared Error (MSE) for each sub-sample within every sample (first block). Subsequently, for each main sample, a single error value is obtained by averaging the 10 MSEs from its respective sub-samples, following the DAICS methodology (second block).&lt;/span&gt;&lt;/p&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;verticalAlign=middle;" vertex="1" parent="1">
@@ -41,13 +41,13 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-7" value="&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 16px;&quot;&gt;reconstruction_error&lt;/font&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 16px;&quot;&gt;&amp;gt;&amp;nbsp;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 16px;&quot;&gt;max(threshold_outputs)&amp;nbsp;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 16px;&quot;&gt;+ t_base&lt;/font&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-7" value="&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 16px;&quot;&gt;reconstruction_error&lt;/font&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 16px;&quot;&gt;&amp;gt;&amp;nbsp;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 16px;&quot;&gt;max(threshold_outputs)&amp;nbsp;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 16px;&quot;&gt;+ t_base&lt;/font&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry y="1640" width="320" height="320" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-48" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-8" target="DDEnpmRq-jySMfK6d3gm-19">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-8" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Reconstruction Errors (MSE)&lt;/font&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-8" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Reconstruction Errors (MSE)&lt;/font&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="40" y="920" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-10" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;&lt;b style=&quot;font-family: &amp;quot;Lucida Console&amp;quot;; text-align: center;&quot;&gt;&lt;font&gt;Inputs&lt;/font&gt;&lt;/b&gt;&lt;/h1&gt;&lt;p style=&quot;&quot;&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;The autoencoder receives mixed samples (normal + attack).&amp;nbsp;&lt;/font&gt;&lt;span style=&quot;font-size: 16px; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;The shape is (X, Y, Z), where X is the number of samples, Y is the window size (10), and Z is the number of features (51).&lt;/span&gt;&lt;/p&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;verticalAlign=middle;" vertex="1" parent="1">
@@ -62,7 +62,7 @@
         <mxCell id="DDEnpmRq-jySMfK6d3gm-49" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-19" target="DDEnpmRq-jySMfK6d3gm-23">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-19" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Reshape (X,Y,Z) to (X,)&lt;/font&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-19" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Reshape (X,Y,Z) to (X,)&lt;/font&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="40" y="1080" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-54" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-22">
@@ -82,13 +82,13 @@
         <mxCell id="DDEnpmRq-jySMfK6d3gm-60" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-32" target="DDEnpmRq-jySMfK6d3gm-42">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-32" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Benign&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-32" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Benign&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="480" y="2040" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-68" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-33" target="DDEnpmRq-jySMfK6d3gm-65">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-33" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Anomaly&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-33" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Anomaly&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="-401" y="2040" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-63" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-38" target="DDEnpmRq-jySMfK6d3gm-45">
@@ -99,13 +99,13 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-38" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;Δ_threshold_model&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;&amp;gt;&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;ε_model&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-38" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;Δ_threshold_model&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;&amp;gt;&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;ε_model&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="717.25" y="2598" width="240" height="240" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-61" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-42" target="DDEnpmRq-jySMfK6d3gm-44">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-42" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Update&amp;nbsp;&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;Local Threshold Model&lt;/font&gt;&lt;/div&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-42" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Update&amp;nbsp;&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;Local Threshold Model&lt;/font&gt;&lt;/div&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="480" y="2200" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-62" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-44" target="DDEnpmRq-jySMfK6d3gm-38">
@@ -114,7 +114,7 @@
         <mxCell id="DDEnpmRq-jySMfK6d3gm-44" value="&lt;span style=&quot;font-family: &amp;quot;Lucida Console&amp;quot;; font-size: 16px;&quot;&gt;&lt;b&gt;Δ_threshold_model&lt;/b&gt;&amp;nbsp;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-family: &amp;quot;Lucida Console&amp;quot;; font-size: 16px;&quot;&gt;=&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;font-family: &amp;quot;Lucida Console&amp;quot;; font-size: 16px;&quot;&gt;L2(local_threshold_model, global_threshold_model)&lt;/span&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
           <mxGeometry x="599.75" y="2438" width="475" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-45" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Update&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;Global Threshold Model&lt;/font&gt;&lt;/div&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-45" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Update&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;Global Threshold Model&lt;/font&gt;&lt;/div&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="717.25" y="2918" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-69" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-65" target="DDEnpmRq-jySMfK6d3gm-66">
@@ -125,7 +125,7 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-65" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;N&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Helvetica&quot;&gt;consecutives anomalies?&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-65" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;N&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Helvetica&quot;&gt;consecutives anomalies?&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="-401" y="2200" width="240" height="240" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-199" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-66" target="DDEnpmRq-jySMfK6d3gm-198">
@@ -136,7 +136,7 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-66" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;False Positive?&lt;/span&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-66" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;False Positive?&lt;/span&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="-401" y="2520" width="240" height="240" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-79" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=none;endFill=0;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-67" target="DDEnpmRq-jySMfK6d3gm-70">
@@ -156,7 +156,7 @@
             <mxPoint x="-0.5" y="3401" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-71" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Update&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;Local Autoencoder Model&lt;/font&gt;&lt;/div&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-71" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Update&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;Local Autoencoder Model&lt;/font&gt;&lt;/div&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="-400.5" y="3160" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-76" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=light-dark(#000000,#FFFFFF);dashed=1;endArrow=none;endFill=0;" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-72" target="DDEnpmRq-jySMfK6d3gm-3">
@@ -197,10 +197,10 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-82" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;Δ_autoencoder_model&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;&amp;gt;&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;ε_model&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-82" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;Δ_autoencoder_model&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;&amp;gt;&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;ε_model&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="-680.5" y="3561" width="240" height="240" as="geometry" />
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-83" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Update&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;Global Autoencoder Model&lt;/font&gt;&lt;/div&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-83" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Update&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;Global Autoencoder Model&lt;/font&gt;&lt;/div&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="-680.5" y="3881" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-98" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;Benign Classifications&lt;/h1&gt;&lt;p style=&quot;&quot;&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;Controlling false negatives in benign classifications is extremely challenging, if not impossible. Unlike false positives, where an operator can verify the classification, there isn&#39;t a similarly specific method to address false negatives.&lt;/font&gt;&lt;/p&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;verticalAlign=middle;align=left;" vertex="1" parent="1">
@@ -317,7 +317,7 @@
         <mxCell id="DDEnpmRq-jySMfK6d3gm-133" value="" style="shape=curlyBracket;whiteSpace=wrap;html=1;rounded=1;flipH=0;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;dashed=1;strokeColor=light-dark(#000000,#FFFFFF);" vertex="1" parent="1">
           <mxGeometry x="-740.5" y="3561" width="40" height="240" as="geometry" />
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-191" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;Update&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;t_base&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-191" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;Update&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;t_base&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="-120.5" y="3401" width="240" height="80" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-195" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=none;endFill=0;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-193" target="DDEnpmRq-jySMfK6d3gm-194">
@@ -337,7 +337,7 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="DDEnpmRq-jySMfK6d3gm-198" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;N&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Helvetica&quot;&gt;consecutives&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Helvetica&quot;&gt;false positives?&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=light-dark(#FFFFFF,#0D1117);" vertex="1" parent="1">
+        <mxCell id="DDEnpmRq-jySMfK6d3gm-198" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;N&lt;/font&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Helvetica&quot;&gt;consecutives&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;font face=&quot;Helvetica&quot;&gt;false positives?&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="-401" y="2838" width="240" height="240" as="geometry" />
         </mxCell>
         <mxCell id="DDEnpmRq-jySMfK6d3gm-201" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;endArrow=none;endFill=0;strokeColor=light-dark(#000000,#FFFFFF);" edge="1" parent="1" source="DDEnpmRq-jySMfK6d3gm-202" target="DDEnpmRq-jySMfK6d3gm-203">
