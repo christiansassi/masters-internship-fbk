@@ -1,5 +1,6 @@
 # Table of Contents
 
+- [Training Pipeline](#training-pipeline)
 - [Deployment Pipeline](#deployment-pipeline)
   - [Inputs](#inputs)
   - [Autoencoder Model](#autoencoder-model)
@@ -14,6 +15,8 @@
       - [New Federated Learning Session](#new-federated-learning-session)
       - [`t_base`](#t_base)
   - [Visual Representation](#visual-representation)
+
+# Training Pipeline
 
 # Deployment Pipeline
 
