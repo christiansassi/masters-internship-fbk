@@ -6,6 +6,7 @@ import dotenv
 import tensorflow as tf
 import wandb
 
+# Disable FutureWarning
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
