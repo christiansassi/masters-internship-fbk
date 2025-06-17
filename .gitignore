@@ -4,6 +4,7 @@
 # Directories
 **/datasets
 **/keys
+**/private_scripts
 **/wandb
 
 # Extensions
