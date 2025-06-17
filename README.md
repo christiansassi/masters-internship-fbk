@@ -53,9 +53,6 @@ The classification method is directly adopted from DAICS.
 
 Controlling false negatives in benign classifications is extremely challengin, if not impossible. Unlike false positives, where an operator can verify the classification, there isn't a similarly specific method to address false negatives.
 
-> [!NOTE]
-> Unlike benign 
-
 ### Anomaly Classifications
 
 Controlling false positives is easier than false negatives. In this scenario, an operator can verify the classification, and their feedback can then be used to update the entire system.
