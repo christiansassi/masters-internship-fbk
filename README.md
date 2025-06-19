@@ -1,5 +1,6 @@
 # Table of Contents
 
+- [State of the Art](#state-of-the-art)
 - [Training Pipeline](#training-pipeline)
 - [Deployment Pipeline](#deployment-pipeline)
   - [Inputs](#inputs)
@@ -16,7 +17,13 @@
       - [`t_base`](#t_base)
   - [Visual Representation](#visual-representation)
 
+# State of the Art
+
+TODO
+
 # Training Pipeline
+
+TODO
 
 # Deployment Pipeline
 
