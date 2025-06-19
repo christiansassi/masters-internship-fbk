@@ -59,11 +59,17 @@ The classification method is directly adopted from DAICS.
 > [!NOTE]
 > The system initializes with a `t_base` value derived from the training session.
 
-### Benign Classifications
+<details open>
+
+<summary><h3>Benign Classifications</h3></summary>
 
 Controlling false negatives in benign classifications is extremely challengin, if not impossible. Unlike false positives, where an operator can verify the classification, there isn't a similarly specific method to address false negatives.
 
-### Anomaly Classifications
+</details>
+
+<details open>
+
+<summary><h3>Anomaly Classifications</h3></summary>
 
 Controlling false positives is easier than false negatives. In this scenario, an operator can verify the classification, and their feedback can then be used to update the entire system.
 
@@ -86,6 +92,8 @@ The client sends a request to initiate a new federated learning session. The sta
 #### `t_base`
 
 Unlike DAICS, where `t_base` is calculated only once (as the threshold model alone assesses concept drift), this solution recalculates `t_base` whenever a new federated learning session is requested. Of course, this is done at the end, once convergence is achieved.
+
+</details>
 
 ## Visual Representation
 
