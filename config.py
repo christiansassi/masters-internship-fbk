@@ -20,7 +20,6 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 dotenv.load_dotenv()
 
 #? --- Global Script Settings ---
-MULTITHREAD: bool = False
 USE_GPU: bool = True
 N_CLIENTS: int = os.cpu_count() - 1
 CPU_COUNT: int = os.cpu_count() - 1
@@ -79,6 +78,8 @@ class ModelConfig:
     
     AUTOENCODER_MODEL: str = join(DatasetConfig.DATASET_NAME, "models", "autoencoder.keras") # Autoencoder model
     THRESHOLD_MODEL: str = join(DatasetConfig.DATASET_NAME, "models", "threshold.keras") # Threshold model
+
+    VERBOSE: int = 0
 
 # import wandb
 

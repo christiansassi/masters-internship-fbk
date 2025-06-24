@@ -17,10 +17,6 @@ from sklearn.model_selection import train_test_split
 
 from uuid import uuid4
 
-import math
-
-from threading import Thread, Lock
-
 def clone(src: Model, weights: list | None = None):
     """
     Creates a clone of a Keras model, optionally setting its weights.
@@ -123,7 +119,7 @@ class Client:
             validation_steps=validation_steps,
             #batch_size=batch_size,
 
-            verbose=1
+            verbose=config.ModelConfig.VERBOSE
         )
     
     def _autoencoder_evaluate(self, model: Model) -> float:
@@ -163,7 +159,7 @@ class Client:
         # Perform prediction using the batched dataset.
         y_pred = self._autoencoder.predict(
             x_test_dataset,
-            verbose=0
+            verbose=config.ModelConfig.VERBOSE
         )
 
         # Reconstruct the ground truth (y_true) from the same batched dataset.
@@ -309,49 +305,6 @@ class Server:
     
     def federated_learning(self):
 
-        _evaluate_clients_lock = Lock()
-
-        def _partition_clients(_clients: list[Client]) -> list[list]:
-
-            _n = config.CPU_COUNT
-            _k = len(_clients)
-
-            _result = []
-
-            if len(_clients) >= _n:
-
-                _avg = len(_clients) // _n
-                _remainder = len(_clients) % _n
-                _start = 0
-
-                for i in range(_n):
-                    _end = _start + _avg + (1 if i < _remainder else 0)
-                    _result.append(_clients[_start:_end])
-                    _start = _end
-
-            else:
-
-                _result = [[] for _ in range(_k)]
-
-                for i, item in enumerate(_clients):
-                    _result[i % _k].append(item)
-
-            return _result
-        
-        def _update_clients(_clients: list[Client]):
-
-            for _, client in enumerate(_clients):
-                client._autoencoder_train(model=self._global_autoencoder)
-
-        def _evaluate_clients(_clients: list[Client]):
-
-            for _, client in enumerate(_clients):
-
-                accuracy = client._autoencoder_evaluate(model=self._global_autoencoder)
-
-                with _evaluate_clients_lock:
-                    self._autoencoder_average_accuracy_score = self._autoencoder_average_accuracy_score + accuracy
-                
         # All the clients partecipate in the first round
         selected_clients = self._select_clients()
 
@@ -366,16 +319,8 @@ class Server:
             round_num = round_num + 1
 
             # Update clients
-            threads = []
-            chunks = _partition_clients(_clients=selected_clients) if config.MULTITHREAD else [selected_clients]
-
-            for chunk in chunks:
-                thread = Thread(target=_update_clients, args=(chunk, ))
-                thread.start()
-                threads.append(thread)
-            
-            for thread in threads:
-                thread.join()
+            for _, client in enumerate(selected_clients):
+                client._autoencoder_train(model=self._global_autoencoder)
             
             # Model aggregation
             self._aggregate_models(clients=selected_clients)
@@ -383,16 +328,11 @@ class Server:
             # Evaluate clients
             self._autoencoder_average_accuracy_score = 0
 
-            threads = []
-            chunks = _partition_clients(_clients=self._clients) if config.MULTITHREAD else [self._clients]
+            for _, client in enumerate(self._clients):
 
-            for chunk in chunks:
-                thread = Thread(target=_evaluate_clients, args=(chunk, ))
-                thread.start()
-                threads.append(thread)
-            
-            for thread in threads:
-                thread.join()
+                accuracy = client._autoencoder_evaluate(model=self._global_autoencoder)
+
+                self._autoencoder_average_accuracy_score = self._autoencoder_average_accuracy_score + accuracy
             
             self._autoencoder_average_accuracy_score = self._autoencoder_average_accuracy_score / len(self._clients)
 
