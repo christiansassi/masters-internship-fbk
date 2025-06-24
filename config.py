@@ -22,6 +22,7 @@ os.environ["WANDB_CONSOLE"] = "off"
 #? --- Global Script Settings ---
 MULTITHREAD: bool = True
 N_CLIENTS: int = os.cpu_count() - 1 if MULTITHREAD else 1
+CPU_COUNT: int = os.cpu_count() - 1 if MULTITHREAD else 1
 USE_GPU: bool = True
 USE_GPU = USE_GPU if USE_GPU and len(tf.config.list_logical_devices("GPU")) > 0 else False
 
@@ -68,6 +69,14 @@ class DatasetConfig:
         "AIT504", "FIT501", "FIT502", "FIT503", "FIT504", "P501", "P502",
         "PIT501", "PIT502", "PIT503", "FIT601", "P601", "P602", "P603"
     ]
+
+class ModelConfig:
+    """
+    Paths to saved models
+    """
+    
+    AUTOENCODER_MODEL: str = join(DatasetConfig.DATASET_NAME, "models", "autoencoder.keras") # Autoencoder model
+    THRESHOLD_MODEL: str = join(DatasetConfig.DATASET_NAME, "models", "threshold.keras") # Threshold model
 
 class WandbConfig:
     """
