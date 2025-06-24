@@ -1,5 +1,6 @@
 # Visual Studio Code
 **/.vscode
+**/__pycache__/
 
 # Directories
 **/datasets
