@@ -127,10 +127,13 @@ if __name__ == "__main__":
 
     utils.clear_console()
 
+    # Load Normal and Attack datasets
     df_normal = load_dataset(input_src=config.DatasetConfig.INPUT_NORMAL)
     df_attack = load_dataset(input_src=config.DatasetConfig.INPUT_ATTACK)
 
+    # Normalize Normal and Attack datasets
     df_normal, df_attack = normalize_datasets(df_normal, df_attack)
 
+    # Process Normal and Attack datasets
     process_dataset(df=df_normal, output_src=config.DatasetConfig.OUTPUT_NORMAL)
     process_dataset(df=df_attack, output_src=config.DatasetConfig.OUTPUT_ATTACK)
