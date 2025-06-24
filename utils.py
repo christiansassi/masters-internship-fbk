@@ -28,7 +28,7 @@ def configure_log(log_level: int = logging.INFO):
     Sets the log message format, time format, and minimum logging level.
 
     :param log_level: The logging level. Defaults to `logging.INFO`.
-    :type log_level: Literal
+    :type log_level: `Literal`
     """
 
     _log_levels = [0, 10, 20, 30, 40, 50]
@@ -41,9 +41,12 @@ def configure_log(log_level: int = logging.INFO):
         log_level=log_level
     )
     
-def log_timestamp_status():
+def log_timestamp_status() -> str:
     """
     Returns a formatted string with current timestamp and log level.
+    
+    :return: The formatted string.
+    :rtype: `str`
     """
 
     return f"[{datetime.now().strftime('%H:%M:%S')}][{logging.getLevelName(logging.getLogger().getEffectiveLevel())}]"

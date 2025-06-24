@@ -10,7 +10,21 @@ import logging
 import config
 import utils
 
-def load_dataset(input_src: str):
+def load_dataset(input_src: str) -> pd.DataFrame:
+    """
+    Loads the dataset and performs initial preprocessing, including:
+    - Stripping column names
+    - Converting data to the correct types
+    - Keeping only relevant columns
+    - Fixing typos
+    - Dropping NaN values
+
+    :param input_src: The path to the dataset file to be loaded.
+    :type input_src: `str`
+
+    :return: The preprocessed dataframe.
+    :rtype: `pd.DataFrame`
+    """
 
     logging.info(f"Loading {input_src}")
 
@@ -34,7 +48,16 @@ def load_dataset(input_src: str):
 
     return df
 
-def normalize_datasets(*datasets):
+def normalize_datasets(*datasets) -> list[pd.DataFrame]:
+    """
+    Normalizes one or more given datasets.
+
+    :param datasets: One or more datasets to be normalized.
+    :type datasets: `Any`
+
+    :return: A list containing the normalized dataset(s).
+    :rtype: `list[pd.DataFrame]`
+    """
 
     logging.info(f"Normalizing {len(datasets)} dataset{'s' if len(datasets) > 1 else ''}")
 
@@ -65,10 +88,20 @@ def normalize_datasets(*datasets):
 
     return normalized_datasets
 
-
 def process_dataset(df: pd.DataFrame, output_src: str):
+    """
+    Processes a dataset and saves it. This includes:
+    - Extracting labels and converting them into integers (one-hot encoding).
+    - Organizing rows into windows according to `config.DatasetConfig.ROWS_PER_SAMPLE`.
 
-    # Extract labels and convert them in int
+    :param df: The dataset to be processed.
+    :type df: `pd.DataFrame`
+
+    :param output_src: The path to the output file where the processed dataset will be saved.
+    :type output_src: `str`
+    """
+
+    # Extract labels and convert them into int
     labels = df["Normal/Attack"].map({"Normal": 0, "Attack": 1}).astype(np.int32)
     
     # Organize rows in windows
