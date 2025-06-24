@@ -1,4 +1,11 @@
 import os
+
+#? --- Environment Setup ---
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["WANDB_SILENT"] = "true"
+os.environ["WANDB_CONSOLE"] = "off"
+
 from os.path import join
 
 import dotenv
@@ -12,12 +19,6 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Load Environment Variables
 dotenv.load_dotenv()
-
-#? --- Environment Setup ---
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-os.environ["WANDB_SILENT"] = "true"
-os.environ["WANDB_CONSOLE"] = "off"
 
 #? --- Global Script Settings ---
 MULTITHREAD: bool = True

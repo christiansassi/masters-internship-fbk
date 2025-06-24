@@ -1,3 +1,8 @@
+# Local imports
+import config
+import utils
+
+# External imports
 import pandas as pd
 import h5py
 import numpy as np
@@ -5,10 +10,6 @@ import numpy as np
 from rich.progress import track
 
 import logging
-
-# Local imports
-import config
-import utils
 
 def load_dataset(input_src: str) -> pd.DataFrame:
     """
