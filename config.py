@@ -21,11 +21,13 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 dotenv.load_dotenv()
 
 #? --- Global Script Settings ---
-MULTITHREAD: bool = True
-N_CLIENTS: int = os.cpu_count() - 1 if MULTITHREAD else 1
-CPU_COUNT: int = os.cpu_count() - 1 if MULTITHREAD else 1
+MULTITHREAD: bool = False
 USE_GPU: bool = True
-USE_GPU = USE_GPU if USE_GPU and len(tf.config.list_logical_devices("GPU")) > 0 else False
+N_CLIENTS: int = os.cpu_count() - 1
+CPU_COUNT: int = os.cpu_count() - 1
+
+if not USE_GPU and len(tf.config.list_physical_devices("GPU")) > 0:
+    tf.config.set_visible_devices([], "GPU")
 
 #? --- Configuration Classes ---
 class FLADHyperparameters:

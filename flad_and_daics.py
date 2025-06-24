@@ -45,6 +45,13 @@ def clone(src: Model, weights: list | None = None):
     # Set weights from src (input model) or given weights
     model.set_weights(src.get_weights() if weights is None else weights)
 
+    if src.optimizer is not None and src.loss is not None:
+        model.compile(
+            optimizer=src.optimizer.__class__.from_config(src.optimizer.get_config()),
+            loss=src.loss,
+            metrics=src.metrics
+        )
+        
     return model
 
 class Client:
@@ -93,6 +100,10 @@ class Client:
         # Calculate batch size
         batch_size = int(max(len(self._autoencoder_data["x_train"]) // steps, 1))
         
+        # Calculate steps
+        steps_per_epoch = len(self._autoencoder_data["x_train"]) // batch_size
+        validation_steps = len(self._autoencoder_data["x_val"]) // batch_size
+
         x_train = tf.data.Dataset.from_tensor_slices(
             (self._autoencoder_data["x_train"], self._autoencoder_data["x_train"])
         ).batch(batch_size=batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE)
@@ -108,9 +119,11 @@ class Client:
             validation_data=x_val,
 
             epochs=epochs,
-            batch_size=batch_size,
+            steps_per_epoch=steps_per_epoch,
+            validation_steps=validation_steps,
+            #batch_size=batch_size,
 
-            verbose=0
+            verbose=1
         )
     
     def _autoencoder_evaluate(self, model: Model) -> float:
@@ -274,7 +287,7 @@ class Server:
                 continue
 
             min_accuracy_score = min(min_accuracy_score, client._autoencoder_info["accuracy_score"])
-            max_accuracy_score = max(min_accuracy_score, client._autoencoder_info["accuracy_score"])
+            max_accuracy_score = max(max_accuracy_score, client._autoencoder_info["accuracy_score"])
 
             selected_clients.append(client)
 
@@ -354,8 +367,9 @@ class Server:
 
             # Update clients
             threads = []
+            chunks = _partition_clients(_clients=selected_clients) if config.MULTITHREAD else [selected_clients]
 
-            for chunk in _partition_clients(_clients=selected_clients):
+            for chunk in chunks:
                 thread = Thread(target=_update_clients, args=(chunk, ))
                 thread.start()
                 threads.append(thread)
@@ -367,9 +381,12 @@ class Server:
             self._aggregate_models(clients=selected_clients)
 
             # Evaluate clients
-            threads = []
+            self._autoencoder_average_accuracy_score = 0
 
-            for chunk in _partition_clients(_clients=self._clients):
+            threads = []
+            chunks = _partition_clients(_clients=self._clients) if config.MULTITHREAD else [self._clients]
+
+            for chunk in chunks:
                 thread = Thread(target=_evaluate_clients, args=(chunk, ))
                 thread.start()
                 threads.append(thread)
@@ -524,7 +541,7 @@ if __name__ == "__main__":
 
     # Load dataset
     hf = h5py.File(name=config.DatasetConfig.OUTPUT_NORMAL)
-    x = np.array(hf["x"])
+    x = np.array(hf["x"]).astype(np.float32)
 
     # Create a random autoencoder model
     autoencoder = random_autoencoder_model(x_shape=x.shape[1:])
