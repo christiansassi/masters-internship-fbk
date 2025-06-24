@@ -11,7 +11,6 @@ from os.path import join
 import dotenv
 
 import tensorflow as tf
-import wandb
 
 # Disable FutureWarning
 import warnings
@@ -81,21 +80,23 @@ class ModelConfig:
     AUTOENCODER_MODEL: str = join(DatasetConfig.DATASET_NAME, "models", "autoencoder.keras") # Autoencoder model
     THRESHOLD_MODEL: str = join(DatasetConfig.DATASET_NAME, "models", "threshold.keras") # Threshold model
 
-class WandbConfig:
-    """
-    Configuration for Weights & Biases logging.
-    """
+# import wandb
 
-    ENTITY: str = os.getenv("ENTITY")
-    PROJECT: str = os.getenv("PROJECT")
-
-    def init_run(self, name: str):
-        """
-        Initializes a Weights & Biases run with predefined settings.
-        """
-
-        return wandb.init(
-            entity=self.ENTITY,
-            project=self.PROJECT,
-            name=name
-        )
+# class WandbConfig:
+#     """
+#     Configuration for Weights & Biases logging.
+#     """
+# 
+#     ENTITY: str = os.getenv("ENTITY")
+#     PROJECT: str = os.getenv("PROJECT")
+# 
+#     def init_run(self, name: str):
+#         """
+#         Initializes a Weights & Biases run with predefined settings.
+#         """
+# 
+#         return wandb.init(
+#             entity=self.ENTITY,
+#             project=self.PROJECT,
+#             name=name
+#         )
