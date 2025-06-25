@@ -81,6 +81,13 @@ class Client:
         # Threshold data (x_train, x_val, x_test) initially set to None
         self._threshold_data: dict = None
 
+        # Threshold info
+        self._threshold_info: dict = {
+            "accuracy_score": 0,
+            "epochs": config.FLADHyperparameters.MAX_EPOCHS,
+            "steps": config.FLADHyperparameters.MAX_STEPS
+        }
+
         # Calculate total samples
         self._samples: int = sum([len(self._autoencoder_data[key]) for key in self._autoencoder_data.keys()])
 
@@ -149,15 +156,13 @@ class Client:
         # Clone the input model to ensure evaluation is on a fresh copy or specific aggregated model
         self._autoencoder = clone(src=model)
 
-        # Extract steps.
+        # Extract steps
         steps = self._autoencoder_info["steps"]
 
         if steps <= 0:
             return
 
-        # Calculate batch size for prediction.
-        # This ensures consistent batch sizes if `drop_remainder=True` is used.
-        # The batch size is derived from the training data parameters for consistency.
+        # Calculate batch size
         batch_size = int(max(len(self._autoencoder_data["x_test"]) // steps, 1))
 
         # Create a TensorFlow Dataset for the test data.
@@ -199,7 +204,8 @@ class Client:
         self._threshold = clone(src=model)
 
         # Extract steps
-        steps = self._autoencoder_info["steps"]
+        steps = self._threshold_info["steps"]
+        epochs = self._threshold_info["epochs"]
 
         # Derive the threshold data from the autoencoder data
         for key in ["x_train", "x_val", "x_test"]:
@@ -256,7 +262,7 @@ class Client:
 
             validation_data=x_val,
 
-            epochs=config.FLADHyperparameters.MAX_EPOCHS,
+            epochs=epochs,
             steps_per_epoch=steps_per_epoch,
             validation_steps=validation_steps,
 
@@ -264,7 +270,44 @@ class Client:
         )
 
     def _threshold_evaluate(self):
-        pass
+        
+        # Extract steps
+        steps = self._threshold_info["steps"]
+
+        # Calculate batch size
+        batch_size = int(max(len(self._threshold_data["x_test"]) // steps, 1))
+
+        # Create a TensorFlow Dataset for the test data.
+        # `drop_remainder=True` is used to ensure all batches passed to `predict` have
+        # the same shape, which helps prevent `tf.function` retracing warnings.
+        x_test_dataset = tf.data.Dataset.from_tensor_slices(
+            tensors=self._threshold_data["x_test"]
+        ).batch(batch_size=batch_size, drop_remainder=True)
+
+        # Perform prediction using the batched dataset.
+        y_pred = self._threshold.predict(
+            x_test_dataset,
+            verbose=config.VERBOSE
+        )
+
+        # Reconstruct the ground truth (y_true) from the same batched dataset.
+        # This is crucial because `drop_remainder=True` means `y_pred` will not
+        # include predictions for any partial last batch, so `y_true` must match
+        # the exact data that `y_pred` was generated from.
+        y_true_list = []
+
+        for batch in x_test_dataset:
+            y_true_list.append(batch.numpy()) # Convert TensorFlow tensor batch back to NumPy array
+
+        y_true = np.concatenate(y_true_list, axis=0) # Combine all batches into a single NumPy array
+
+        # Calculate the reconstruction error.
+        # As per the project's FLAD specific implementation, the error is negated
+        # to align with an objective of maximizing accuracy, even though autoencoders
+        # traditionally minimize reconstruction error.
+        self._threshold_info["accuracy_score"] = np.mean(np.square(y_true - y_pred))
+
+        return self._threshold_info["accuracy_score"]
 
 class Server:
     def __init__(
