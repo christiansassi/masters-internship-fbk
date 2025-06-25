@@ -3,6 +3,9 @@ import config
 import utils
 
 # External imports
+from os import listdir, remove
+from os.path import join
+
 import h5py
 import numpy as np
 
@@ -449,6 +452,12 @@ class Server:
 
                 # Save the best model only once
                 if stop_counter == 1:
+                    
+                    # Remove any previous saved model
+                    for f in listdir(config.ModelConfig.AUTOENCODER_MODEL_ROOT):
+                        if f.endswith(config.ModelConfig.MODEL_EXTENSION):
+                            remove(join(config.ModelConfig.AUTOENCODER_MODEL_ROOT, f))
+
                     best_model.save(filepath=config.ModelConfig.autoencoder_model(accuracy=utils.dynamic_round(max_accuracy_score, self._autoencoder_average_accuracy_score)), overwrite=True)
             
             logging.info(f"Stop counter: {stop_counter} / {self._patience}")

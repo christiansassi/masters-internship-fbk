@@ -88,35 +88,35 @@ class ModelConfig:
     Paths to saved models
     """
     
-    _MODEL_ROOT: str = join(DatasetConfig.DATASET_PATH, "models")
-    _MODEL_RUNTIME: str = join(_MODEL_ROOT, f"{int(datetime.now().timestamp())}")
-    _MODEL_EXTENSION: str = ".keras"
+    MODEL_ROOT: str = join(DatasetConfig.DATASET_PATH, "models")
+    MODEL_RUNTIME: str = join(MODEL_ROOT, f"{int(datetime.now().timestamp())}")
+    MODEL_EXTENSION: str = ".keras"
 
-    _AUTOENCODER_MODEL_ROOT: str = join(_MODEL_RUNTIME, "autoencoder")
-    _AUTOENCODER_MODEL_BASENAME: str = "autoencoder"
-    _AUTOENCODER_MODEL: str = join(_AUTOENCODER_MODEL_ROOT, f"{_AUTOENCODER_MODEL_BASENAME}{_MODEL_EXTENSION}") # Autoencoder model
+    AUTOENCODER_MODEL_ROOT: str = join(MODEL_RUNTIME, "autoencoder")
+    AUTOENCODER_MODEL_BASENAME: str = "autoencoder"
+    AUTOENCODER_MODEL: str = join(AUTOENCODER_MODEL_ROOT, f"{AUTOENCODER_MODEL_BASENAME}{MODEL_EXTENSION}") # Autoencoder model
 
-    _THRESHOLD_MODEL_ROOT: str = join(_MODEL_RUNTIME, "threshold")
-    _THRESHOLD_MODEL_BASENAME: str = "threshold"
-    THRESHOLD_MODEL: str = join(_THRESHOLD_MODEL_ROOT, f"{_THRESHOLD_MODEL_BASENAME}{_MODEL_EXTENSION}") # Threshold model
+    THRESHOLD_MODEL_ROOT: str = join(MODEL_RUNTIME, "threshold")
+    THRESHOLD_MODEL_BASENAME: str = "threshold"
+    THRESHOLD_MODEL: str = join(THRESHOLD_MODEL_ROOT, f"{THRESHOLD_MODEL_BASENAME}{MODEL_EXTENSION}") # Threshold model
 
     @classmethod
     def autoencoder_model(cls, accuracy: float = None) -> str:
-        return join(cls._AUTOENCODER_MODEL_ROOT, f"{cls._AUTOENCODER_MODEL_BASENAME}-{str(accuracy)}{cls._MODEL_EXTENSION}")
+        return join(cls.AUTOENCODER_MODEL_ROOT, f"{cls.AUTOENCODER_MODEL_BASENAME}-{str(accuracy)}{cls.MODEL_EXTENSION}")
 
     @classmethod
     def threshold_model(cls, accuracy: float = None) -> str:
-        return join(cls._THRESHOLD_MODEL_ROOT, f"{cls._THRESHOLD_MODEL_BASENAME}-{str(accuracy)}{cls._MODEL_EXTENSION}")
+        return join(cls.THRESHOLD_MODEL_ROOT, f"{cls.THRESHOLD_MODEL_BASENAME}-{str(accuracy)}{cls.MODEL_EXTENSION}")
 
 # Create folders
-if not exists(ModelConfig._MODEL_RUNTIME):
-    makedirs(name=ModelConfig._MODEL_RUNTIME, exist_ok=True)
+if not exists(ModelConfig.MODEL_RUNTIME):
+    makedirs(name=ModelConfig.MODEL_RUNTIME, exist_ok=True)
 
-if not exists(ModelConfig._AUTOENCODER_MODEL_ROOT):
-    makedirs(name=ModelConfig._AUTOENCODER_MODEL_ROOT, exist_ok=True)
+if not exists(ModelConfig.AUTOENCODER_MODEL_ROOT):
+    makedirs(name=ModelConfig.AUTOENCODER_MODEL_ROOT, exist_ok=True)
 
-if not exists(ModelConfig._THRESHOLD_MODEL_ROOT):
-    makedirs(name=ModelConfig._THRESHOLD_MODEL_ROOT, exist_ok=True)
+if not exists(ModelConfig.THRESHOLD_MODEL_ROOT):
+    makedirs(name=ModelConfig.THRESHOLD_MODEL_ROOT, exist_ok=True)
 
 #? --- Wandb Configuration ---
 class WandbConfig:
