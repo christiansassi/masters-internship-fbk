@@ -6,11 +6,14 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["WANDB_SILENT"] = "true"
 os.environ["WANDB_CONSOLE"] = "off"
 
-from os.path import join
+from os.path import join, exists
+from os import makedirs
 
 import dotenv
 
 import tensorflow as tf
+
+from datetime import datetime
 
 # Disable FutureWarning
 import warnings
@@ -29,7 +32,7 @@ VERBOSE: int = 0
 if not USE_GPU and len(tf.config.list_physical_devices("GPU")) > 0:
     tf.config.set_visible_devices([], "GPU")
 
-#? --- Configuration Classes ---
+#? --- FLAD Configuration ---
 class FLADHyperparameters:
     """
     Hyperparameters for FLAD (Section 5, Table IV).
@@ -41,6 +44,7 @@ class FLADHyperparameters:
     MAX_STEPS: int = 1000
     PATIENCE: int = 25
 
+#? --- Dataset Configuration ---
 class DatasetConfig:
     """
     Configuration for dataset paths, processing, and structure.
@@ -73,29 +77,43 @@ class DatasetConfig:
         "PIT501", "PIT502", "PIT503", "FIT601", "P601", "P602", "P603"
     ]
 
+#? --- Model Configuration ---
 class ModelConfig:
     """
     Paths to saved models
     """
     
-    _MODEL_ROOT: str = join(DatasetConfig.DATASET_NAME, f"models")
+    _MODEL_ROOT: str = join(DatasetConfig.DATASET_PATH, "models")
+    _MODEL_RUNTIME: str = join(_MODEL_ROOT, f"models-{int(datetime.now().timestamp())}")
     _MODEL_EXTENSION: str = ".keras"
 
-    _AUTOENCODER_MODEL_LABEL: str = "autoencoder"
-    AUTOENCODER_MODEL: str = join(_MODEL_ROOT, f"{_AUTOENCODER_MODEL_LABEL}{_MODEL_EXTENSION}") # Autoencoder model
+    _AUTOENCODER_MODEL_ROOT: str = join(_MODEL_RUNTIME, "autoencoder")
+    _AUTOENCODER_MODEL_BASENAME: str = "autoencoder"
+    _AUTOENCODER_MODEL: str = join(_AUTOENCODER_MODEL_ROOT, f"{_AUTOENCODER_MODEL_BASENAME}{_MODEL_EXTENSION}") # Autoencoder model
 
-    _THRESHOLD_MODEL_LABEL: str = "threshold"
-    THRESHOLD_MODEL: str = join(_MODEL_ROOT, f"{_THRESHOLD_MODEL_LABEL}{_MODEL_EXTENSION}") # Threshold model
-
-    @classmethod
-    def autoencoder_model(cls, accuracy: float) -> str:
-        return join(cls._MODEL_ROOT, f"{cls._AUTOENCODER_MODEL_LABEL}-{str(accuracy)}{cls._MODEL_EXTENSION}")
+    _THRESHOLD_MODEL_ROOT: str = join(_MODEL_RUNTIME, "threshold")
+    _THRESHOLD_MODEL_BASENAME: str = "threshold"
+    THRESHOLD_MODEL: str = join(_THRESHOLD_MODEL_ROOT, f"{_THRESHOLD_MODEL_BASENAME}{_MODEL_EXTENSION}") # Threshold model
 
     @classmethod
-    def threshold_model(cls, accuracy: float) -> str:
-        return join(cls._MODEL_ROOT, f"{cls._THRESHOLD_MODEL_LABEL}-{str(accuracy)}{cls._MODEL_EXTENSION}")
+    def autoencoder_model(cls, accuracy: float = None) -> str:
+        return join(cls._AUTOENCODER_MODEL_ROOT, f"{cls._AUTOENCODER_MODEL_BASENAME}-{str(accuracy)}{cls._MODEL_EXTENSION}")
 
+    @classmethod
+    def threshold_model(cls, accuracy: float = None) -> str:
+        return join(cls._THRESHOLD_MODEL_ROOT, f"{cls._THRESHOLD_MODEL_BASENAME}-{str(accuracy)}{cls._MODEL_EXTENSION}")
 
+# Create folders
+if not exists(ModelConfig._MODEL_RUNTIME):
+    makedirs(name=ModelConfig._MODEL_RUNTIME, exist_ok=True)
+
+if not exists(ModelConfig._AUTOENCODER_MODEL_ROOT):
+    makedirs(name=ModelConfig._AUTOENCODER_MODEL_ROOT, exist_ok=True)
+
+if not exists(ModelConfig._THRESHOLD_MODEL_ROOT):
+    makedirs(name=ModelConfig._THRESHOLD_MODEL_ROOT, exist_ok=True)
+
+#? --- Wandb Configuration ---
 if WANDB:
     import wandb
 

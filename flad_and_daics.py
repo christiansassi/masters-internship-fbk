@@ -119,7 +119,7 @@ class Client:
             validation_steps=validation_steps,
             #batch_size=batch_size,
 
-            verbose=config.ModelConfig.VERBOSE
+            verbose=config.VERBOSE
         )
     
     def _autoencoder_evaluate(self, model: Model) -> float:
@@ -159,7 +159,7 @@ class Client:
         # Perform prediction using the batched dataset.
         y_pred = self._autoencoder.predict(
             x_test_dataset,
-            verbose=config.ModelConfig.VERBOSE
+            verbose=config.VERBOSE
         )
 
         # Reconstruct the ground truth (y_true) from the same batched dataset.
@@ -338,8 +338,19 @@ class Server:
 
             #? Log
             utils.clear_console()
-            print(self._autoencoder_average_accuracy_score)
-            print(max_accuracy_score)
+            print(f"Round: {round_num}")
+            print(f"Selected clients: {len(selected_clients)} / {len(self._clients)}")
+            print(f"Accuracy: {self._autoencoder_average_accuracy_score}")
+            print(f"Best accuracy: {max_accuracy_score}")
+            print(f"Stop counter: {stop_counter} / {self._patience}")
+
+            run.log({
+                "round": round_num, 
+                "clients": len(selected_clients),
+                "score": self._autoencoder_average_accuracy_score, 
+                "best": max_accuracy_score,
+                "stop_counter": stop_counter
+            })
             #? ---
 
             # Check for improvements
@@ -350,6 +361,7 @@ class Server:
             
             else:
                 stop_counter = stop_counter + 1
+                best_model.save(filepath=config.ModelConfig.autoencoder_model(accuracy=max_accuracy_score), overwrite=True)
             
             # Check stop conditions
             if stop_counter >= self._patience:
@@ -496,5 +508,9 @@ if __name__ == "__main__":
     server = Server(autoencoder=autoencoder, threshold=threshold, clients=clients)
 
     # Start federated learning
+    run = config.WandbConfig.init_run(name="Autoencoder model")
+
     autoencoder = server.federated_learning()
-    autoencoder.save(config.ModelConfig.AUTOENCODER_MODEL)
+    autoencoder.save(filepath=config.ModelConfig.autoencoder_model(), overwrite=True)
+
+    run.finish()
