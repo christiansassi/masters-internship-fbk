@@ -21,7 +21,7 @@ def clear_wandb_cache():
     if exists("wandb"):
         shutil.rmtree("wandb")
 
-def configure_log(log_level: int = logging.INFO):
+def configure_log(level: int = logging.INFO):
     """
     Configures the basic logging settings.
     
@@ -33,12 +33,12 @@ def configure_log(log_level: int = logging.INFO):
 
     _log_levels = [0, 10, 20, 30, 40, 50]
 
-    assert log_level in _log_levels, f"Invalid log level. Accepted values are: {_log_levels}."
+    assert level in _log_levels, f"Invalid log level. Accepted values are: {_log_levels}."
 
     logging.basicConfig(
         format="[%(asctime)s][%(levelname)s] %(message)s",
         datefmt="%H:%M:%S",
-        log_level=log_level
+        level=level
     )
     
 def log_timestamp_status() -> str:

@@ -17,6 +17,9 @@ from sklearn.model_selection import train_test_split
 
 from uuid import uuid4
 
+import logging
+utils.configure_log()
+
 def clone(src: Model, weights: list | None = None):
     """
     Creates a clone of a Keras model, optionally setting its weights.
@@ -69,6 +72,12 @@ class Client:
             "steps": 0
         }
 
+        # Threshold model
+        self._threshold: Model = None
+
+        # Threshold data (x_train, x_val, x_test) initially set to None
+        self._threshold_data: dict = None
+
         # Calculate total samples
         self._samples: int = sum([len(self._autoencoder_data[key]) for key in self._autoencoder_data.keys()])
 
@@ -93,20 +102,21 @@ class Client:
         if epochs <= 0 or steps <= 0:
             return
         
-        # Calculate batch size
-        batch_size = int(max(len(self._autoencoder_data["x_train"]) // steps, 1))
-        
+        # Calculate train and validation batch size
+        train_batch_size = int(max(len(self._autoencoder_data["x_train"]) // steps, 1))
+        val_batch_size = int(max(len(self._autoencoder_data["x_val"]) // steps, 1))
+
         # Calculate steps
-        steps_per_epoch = len(self._autoencoder_data["x_train"]) // batch_size
-        validation_steps = len(self._autoencoder_data["x_val"]) // batch_size
+        steps_per_epoch = len(self._autoencoder_data["x_train"]) // train_batch_size
+        validation_steps = len(self._autoencoder_data["x_val"]) // val_batch_size
 
         x_train = tf.data.Dataset.from_tensor_slices(
             (self._autoencoder_data["x_train"], self._autoencoder_data["x_train"])
-        ).batch(batch_size=batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE)
+        ).batch(batch_size=train_batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE) # Use train_batch_size
 
         x_val = tf.data.Dataset.from_tensor_slices(
             (self._autoencoder_data["x_val"], self._autoencoder_data["x_val"])
-        ).batch(batch_size=batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE)
+        ).batch(batch_size=val_batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE) # Use val_batch_size
 
         # Train the autoencoder
         self._autoencoder.fit(
@@ -117,7 +127,6 @@ class Client:
             epochs=epochs,
             steps_per_epoch=steps_per_epoch,
             validation_steps=validation_steps,
-            #batch_size=batch_size,
 
             verbose=config.VERBOSE
         )
@@ -137,11 +146,10 @@ class Client:
         # Clone the input model to ensure evaluation is on a fresh copy or specific aggregated model
         self._autoencoder = clone(src=model)
 
-        # Extract epochs and steps.
-        epochs = self._autoencoder_info["epochs"]
+        # Extract steps.
         steps = self._autoencoder_info["steps"]
 
-        if epochs <= 0 or steps <= 0:
+        if steps <= 0:
             return
 
         # Calculate batch size for prediction.
@@ -177,11 +185,83 @@ class Client:
         # As per the project's FLAD specific implementation, the error is negated
         # to align with an objective of maximizing accuracy, even though autoencoders
         # traditionally minimize reconstruction error.
-        reconstruction_error = np.mean(np.square(y_true - y_pred))
-        self._autoencoder_info["accuracy_score"] = -reconstruction_error
+        self._autoencoder_info["accuracy_score"] = -np.mean(np.square(y_true - y_pred))
 
         # Return the calculated "accuracy score" (negated reconstruction error).
         return self._autoencoder_info["accuracy_score"]
+
+    def _threshold_train(self, model: Model):
+        
+        # Clone the input model
+        self._threshold = clone(src=model)
+
+        # Extract steps
+        steps = self._autoencoder_info["steps"]
+
+        # Derive the threshold data from the autoencoder data
+        for key in ["x_train", "x_val", "x_test"]:
+
+            data = self._autoencoder_data[key]
+
+            # Calculate batch size for prediction.
+            # This ensures consistent batch sizes if `drop_remainder=True` is used.
+            # The batch size is derived from the training data parameters for consistency.
+            batch_size = int(max(len(data) // steps, 1))
+
+            # Create a TensorFlow Dataset for the input data.
+            dataset = tf.data.Dataset.from_tensor_slices(
+                tensors=data
+            ).batch(batch_size=batch_size, drop_remainder=False)
+
+            # Perform prediction using the batched dataset.
+            y_pred = self._autoencoder.predict(
+                dataset,
+                verbose=config.VERBOSE
+            )
+
+            # Reconstruct y_true from the same batched dataset to ensure matching shapes
+            # even if drop_remainder was used (though we set it to False here for full data).
+            y_true_list = []
+
+            for batch in dataset:
+                y_true_list.append(batch.numpy())
+
+            y_true = np.concatenate(y_true_list, axis=0)
+
+            # Calculate the squared reconstruction error for each sample.
+            self._threshold_data[key] = np.mean(np.square(y_true - y_pred), axis=(1, 2))
+        
+        # Calculate train and validation batch size
+        train_batch_size = int(max(len(self._threshold_data["x_train"]) // steps, 1))
+        val_batch_size = int(max(len(self._threshold_data["x_val"]) // steps, 1))
+
+        # Calculate steps
+        steps_per_epoch = len(self._threshold_data["x_train"]) // train_batch_size
+        validation_steps = len(self._threshold_data["x_val"]) // val_batch_size
+
+        x_train = tf.data.Dataset.from_tensor_slices(
+            (self._threshold_data["x_train"], self._threshold_data["x_train"])
+        ).batch(batch_size=train_batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE)
+
+        x_val = tf.data.Dataset.from_tensor_slices(
+            (self._threshold_data["x_val"], self._threshold_data["x_val"])
+        ).batch(batch_size=val_batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE)
+
+        # Train the threshold
+        self._threshold.fit(
+            x_train,
+
+            validation_data=x_val,
+
+            epochs=config.FLADHyperparameters.MAX_EPOCHS,
+            steps_per_epoch=steps_per_epoch,
+            validation_steps=validation_steps,
+
+            verbose=config.VERBOSE
+        )
+
+    def _threshold_evaluate(self):
+        pass
 
 class Server:
     def __init__(
@@ -315,17 +395,26 @@ class Server:
 
         while True:
 
+            print("")
+            logging.info(f"---------- Round {round_num + 1} ----------")
+
             # Keep track of each round
             round_num = round_num + 1
 
             # Update clients
+            logging.info(f"Updating {len(selected_clients)} client(s)")
+
             for _, client in enumerate(selected_clients):
                 client._autoencoder_train(model=self._global_autoencoder)
             
             # Model aggregation
-            self._aggregate_models(clients=selected_clients)
+            logging.info(f"Aggregating models of {len(selected_clients)} client(s)")
+
+            self._aggregate_models(clients=self._clients)
 
             # Evaluate clients
+            logging.info(f"Evaluating {len(self._clients)} client(s)")
+
             self._autoencoder_average_accuracy_score = 0
 
             for _, client in enumerate(self._clients):
@@ -336,14 +425,10 @@ class Server:
             
             self._autoencoder_average_accuracy_score = self._autoencoder_average_accuracy_score / len(self._clients)
 
-            #? Log
-            utils.clear_console()
-            print(f"Round: {round_num}")
-            print(f"Selected clients: {len(selected_clients)} / {len(self._clients)}")
-            print(f"Accuracy: {self._autoencoder_average_accuracy_score}")
-            print(f"Best accuracy: {max_accuracy_score}")
-            print(f"Stop counter: {stop_counter} / {self._patience}")
+            logging.info(f"Current accuracy score: {utils.dynamic_round(value=self._autoencoder_average_accuracy_score, reference_value=max_accuracy_score)}")
+            logging.info(f"Max accuracy score: {utils.dynamic_round(value=max_accuracy_score, reference_value=self._autoencoder_average_accuracy_score)}")
 
+            #? Wandb log
             run.log({
                 "round": round_num, 
                 "clients": len(selected_clients),
@@ -361,8 +446,13 @@ class Server:
             
             else:
                 stop_counter = stop_counter + 1
-                best_model.save(filepath=config.ModelConfig.autoencoder_model(accuracy=max_accuracy_score), overwrite=True)
+
+                # Save the best model only once
+                if stop_counter == 1:
+                    best_model.save(filepath=config.ModelConfig.autoencoder_model(accuracy=utils.dynamic_round(max_accuracy_score, self._autoencoder_average_accuracy_score)), overwrite=True)
             
+            logging.info(f"Stop counter: {stop_counter} / {self._patience}")
+
             # Check stop conditions
             if stop_counter >= self._patience:
                 break
@@ -376,7 +466,12 @@ class Server:
         # Assign the best model to each client
         for client in self._clients:
             client._autoencoder = clone(src=best_model)
-        
+
+        # Save best model
+        best_model.save(filepath=config.ModelConfig.autoencoder_model(), overwrite=True)
+
+        # TODO perform threshold training for each client
+
         return best_model
 
 def random_autoencoder_model(x_shape: tuple, hidden_units: int = 10, learning_rate: float = 0.0001) -> Model:
@@ -492,25 +587,30 @@ if __name__ == "__main__":
     utils.clear_console()
 
     # Load dataset
+    logging.info(f"Loading dataset")
     hf = h5py.File(name=config.DatasetConfig.OUTPUT_NORMAL)
     x = np.array(hf["x"]).astype(np.float32)
 
     # Create a random autoencoder model
+    logging.info(f"Creating autoencoder model")
     autoencoder = random_autoencoder_model(x_shape=x.shape[1:])
 
     # Create a random threshold model
+    logging.info(f"Creating threshold model")
     threshold = random_threshold_model()
 
     # Create I.I.D. clients
+    logging.info(f"Creating {config.FLADHyperparameters.N_CLIENTS} client(s)")
     clients = random_iid_clients(x=x)
 
     # Create the server
+    logging.info(f"Initializing server")
     server = Server(autoencoder=autoencoder, threshold=threshold, clients=clients)
 
     # Start federated learning
     run = config.WandbConfig.init_run(name="Autoencoder model")
 
+    logging.info(f"Starting federated learning")
     autoencoder = server.federated_learning()
-    autoencoder.save(filepath=config.ModelConfig.autoencoder_model(), overwrite=True)
 
     run.finish()
