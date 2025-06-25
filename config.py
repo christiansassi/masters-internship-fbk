@@ -15,6 +15,8 @@ import tensorflow as tf
 
 from datetime import datetime
 
+from types import SimpleNamespace
+
 # Disable FutureWarning
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -43,7 +45,6 @@ class FLADHyperparameters:
     PATIENCE: int = 25
 
     N_CLIENTS: int = os.cpu_count() - 1 # 13 50 90
-
 
 #? --- Dataset Configuration ---
 class DatasetConfig:
@@ -115,25 +116,31 @@ if not exists(ModelConfig._THRESHOLD_MODEL_ROOT):
     makedirs(name=ModelConfig._THRESHOLD_MODEL_ROOT, exist_ok=True)
 
 #? --- Wandb Configuration ---
-if WANDB:
-    import wandb
+class WandbConfig:
+    """
+    Configuration for Weights & Biases logging.
+    """
 
-    class WandbConfig:
+    ENTITY: str = os.getenv("ENTITY")
+    PROJECT: str = os.getenv("PROJECT")
+    
+    @classmethod
+    def init_run(cls, name: str):
         """
-        Configuration for Weights & Biases logging.
+        Initializes a Weights & Biases run with predefined settings.
         """
 
-        ENTITY: str = os.getenv("ENTITY")
-        PROJECT: str = os.getenv("PROJECT")
-        
-        @classmethod
-        def init_run(cls, name: str):
-            """
-            Initializes a Weights & Biases run with predefined settings.
-            """
+        if WANDB:
+
+            import wandb
 
             return wandb.init(
                 entity=cls.ENTITY,
                 project=cls.PROJECT,
                 name=name
             )
+        
+        else:
+            run = SimpleNamespace()
+            run.log = lambda *args: None
+            run.finish = lambda *args: None
