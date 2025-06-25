@@ -405,10 +405,12 @@ class Server:
             round_num = round_num + 1
 
             # Update clients
-            logging.info(f"Updating {len(selected_clients)} client(s)")
+            print(f"{utils.log_timestamp_status()} Updating {len(selected_clients)} client(s): 0 / {len(selected_clients)}", end="\r" if len(selected_clients) > 1 else "\n")
 
-            for _, client in enumerate(selected_clients):
+            for index, client in enumerate(selected_clients):
                 client._autoencoder_train(model=self._global_autoencoder)
+
+                print(f"{utils.log_timestamp_status()} Updating {len(selected_clients)} client(s): {index + 1} / {len(selected_clients)}", end="\r" if index != len(selected_clients) - 1 else "\n")
             
             # Model aggregation
             logging.info(f"Aggregating models of {len(selected_clients)} client(s)")
@@ -416,15 +418,17 @@ class Server:
             self._aggregate_models(clients=self._clients)
 
             # Evaluate clients
-            logging.info(f"Evaluating {len(self._clients)} client(s)")
+            print(f"{utils.log_timestamp_status()} Evaluating {len(self._clients)} client(s): 0 / {len(self._clients)}", end="\r" if len(self._clients) > 1 else "\n")
 
             self._autoencoder_average_accuracy_score = 0
 
-            for _, client in enumerate(self._clients):
+            for index, client in enumerate(self._clients):
 
                 accuracy = client._autoencoder_evaluate(model=self._global_autoencoder)
 
                 self._autoencoder_average_accuracy_score = self._autoencoder_average_accuracy_score + accuracy
+
+                print(f"{utils.log_timestamp_status()} Evaluating {len(self._clients)} client(s): {index + 1} / {len(self._clients)}", end="\r" if index != len(self._clients) - 1 else "\n")
             
             self._autoencoder_average_accuracy_score = self._autoencoder_average_accuracy_score / len(self._clients)
 
