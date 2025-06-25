@@ -1,5 +1,6 @@
 # Table of Contents
 
+- [Introduction](#introduction)
 - [State of the Art](#state-of-the-art)
 - [Training Pipeline](#training-pipeline)
 - [Deployment Pipeline](#deployment-pipeline)
@@ -17,9 +18,30 @@
       - [`t_base`](#t_base)
   - [Visual Representation](#visual-representation)
 
+# Introduction
+
+The scope of this project is to enhance the understanding of anomaly detection within Industrial Control Systems (ICS) and subsequently develop a functional solution for this domain using federated learning.
+
 # State of the Art
 
-TODO
+This work involved a comprehensive analysis of papers located in the `papers` folder.
+
+The analyzed papers can be broadly categorized into three groups:
+
+- **Federated Learning Focus:** Papers addressing challenges and improvements within federated learning, such as [FLAD: Adaptive Federated Learning for DDoS Attack Detection](papers/FLAD_Adaptive_Federated_Learning_for_DDoS_Attack_Detection.pdf).
+- **Centralized Anomaly Detection Efficiency:** Papers like [DAICS: A Deep Learning Solution for Anomaly Detection in Industrial Control Systems](papers/DAICS_A_Deep_Learning_Solution_for_Anomaly_Detection_in_Industrial.pdf), which prioritize the efficiency of anomaly detection in centralized systems, irrespective of computational overhead.
+- **Lightweight Solutions:** The remaining papers propose lightweight solutions designed for resource-constrained devices, such as IoT devices.
+
+Considering the context of Industrial Control Systems (ICS), it is reasonable to assume that industries possess sufficient computational resources to implement both standard and complex solutions. Therefore, the "lightness" of a solution becomes a less critical factor.
+
+Following this rationale, an intriguing avenue of exploration involves combining the approaches presented in [FLAD](papers/FLAD_Adaptive_Federated_Learning_for_DDoS_Attack_Detection.pdf) and [DAICS](papers/DAICS_A_Deep_Learning_Solution_for_Anomaly_Detection_in_Industrial.pdf). The motivations for this combination are:
+
+- **FLAD's Federated Learning Insights:** While [FLAD](papers/FLAD_Adaptive_Federated_Learning_for_DDoS_Attack_Detection.pdf) focuses on a different domain, it provides valuable insights into the complexities of federated learning and potential mitigation strategies.
+- **DAICS's Centralized ICS Solution:** [DAICS](papers/DAICS_A_Deep_Learning_Solution_for_Anomaly_Detection_in_Industrial.pdf) offers a robust centralized solution specifically tailored for ICS environments.
+
+By integrating these two works, it would be possible to develop a novel federated learning solution for ICSs. This would essentially be a decentralized version of [DAICS](papers/DAICS_A_Deep_Learning_Solution_for_Anomaly_Detection_in_Industrial.pdf), made feasible by leveraging the insights from [FLAD](papers/FLAD_Adaptive_Federated_Learning_for_DDoS_Attack_Detection.pdf). Subsequently, similar to the methodology in [FATRAF: Federated Learning based Autoencoder Transformer Fourier](papers/FATRAF_Federated_Learning_based_Autoencoder_Transformer_Fourier.pdf), it would be valuable to compare the performance of this new decentralized solution against its centralized counterpart. Theoretically, and based on the results from [FATRAF](papers/FATRAF_Federated_Learning_based_Autoencoder_Transformer_Fourier.pdf), the centralized solution is expected to exhibit slightly superior performance; however, overcoming this performance gap is a primary challenge in federated learning systems.
+
+The decision to focus solely on these two papers for now is driven by a desire for simplicity and effectiveness, as their combination appears to be a promising starting point.
 
 # Training Pipeline
 
