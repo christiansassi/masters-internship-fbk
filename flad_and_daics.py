@@ -457,15 +457,15 @@ def random_iid_clients(x: np.ndarray) -> list:
     # Shuffle data
     np.random.default_rng(seed=config.DatasetConfig.SEED).shuffle(x)
 
-    samples_per_client = len(x) // config.N_CLIENTS
+    samples_per_client = len(x) // config.FLADHyperparameters.N_CLIENTS
 
     clients = []
 
     # Each client will receive a specific amount of data (train, validation and test)
-    for i in range(config.N_CLIENTS):
+    for i in range(config.FLADHyperparameters.N_CLIENTS):
 
         autoencoder_start = i * samples_per_client
-        autoencoder_end = (i+ 1) * samples_per_client if i < config.N_CLIENTS - 1 else len(x)
+        autoencoder_end = (i+ 1) * samples_per_client if i < config.FLADHyperparameters.N_CLIENTS - 1 else len(x)
 
         autoencoder_data = x[autoencoder_start:autoencoder_end]
 

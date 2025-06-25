@@ -24,10 +24,9 @@ dotenv.load_dotenv()
 
 #? --- Global Script Settings ---
 USE_GPU: bool = True
-N_CLIENTS: int = os.cpu_count() - 1
-CPU_COUNT: int = os.cpu_count() - 1
 WANDB: bool = True
 VERBOSE: int = 0
+N_CLIENTS: int = os.cpu_count() - 1
 
 if not USE_GPU and len(tf.config.list_physical_devices("GPU")) > 0:
     tf.config.set_visible_devices([], "GPU")
@@ -35,7 +34,7 @@ if not USE_GPU and len(tf.config.list_physical_devices("GPU")) > 0:
 #? --- FLAD Configuration ---
 class FLADHyperparameters:
     """
-    Hyperparameters for FLAD (Section 5, Table IV).
+    Hyperparameters for FLAD
     """
 
     MIN_EPOCHS: int = 1
@@ -43,6 +42,9 @@ class FLADHyperparameters:
     MIN_STEPS: int = 10
     MAX_STEPS: int = 1000
     PATIENCE: int = 25
+
+    N_CLIENTS: int = os.cpu_count() - 1 # 13 50 90
+
 
 #? --- Dataset Configuration ---
 class DatasetConfig:
@@ -84,7 +86,7 @@ class ModelConfig:
     """
     
     _MODEL_ROOT: str = join(DatasetConfig.DATASET_PATH, "models")
-    _MODEL_RUNTIME: str = join(_MODEL_ROOT, f"models-{int(datetime.now().timestamp())}")
+    _MODEL_RUNTIME: str = join(_MODEL_ROOT, f"{int(datetime.now().timestamp())}")
     _MODEL_EXTENSION: str = ".keras"
 
     _AUTOENCODER_MODEL_ROOT: str = join(_MODEL_RUNTIME, "autoencoder")
