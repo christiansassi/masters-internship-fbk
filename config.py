@@ -23,6 +23,8 @@ dotenv.load_dotenv()
 USE_GPU: bool = True
 N_CLIENTS: int = os.cpu_count() - 1
 CPU_COUNT: int = os.cpu_count() - 1
+WANDB: bool = True
+VERBOSE: int = 0
 
 if not USE_GPU and len(tf.config.list_physical_devices("GPU")) > 0:
     tf.config.set_visible_devices([], "GPU")
@@ -76,28 +78,43 @@ class ModelConfig:
     Paths to saved models
     """
     
-    AUTOENCODER_MODEL: str = join(DatasetConfig.DATASET_NAME, "models", "autoencoder.keras") # Autoencoder model
-    THRESHOLD_MODEL: str = join(DatasetConfig.DATASET_NAME, "models", "threshold.keras") # Threshold model
+    _MODEL_ROOT: str = join(DatasetConfig.DATASET_NAME, f"models")
+    _MODEL_EXTENSION: str = ".keras"
 
-    VERBOSE: int = 0
+    _AUTOENCODER_MODEL_LABEL: str = "autoencoder"
+    AUTOENCODER_MODEL: str = join(_MODEL_ROOT, f"{_AUTOENCODER_MODEL_LABEL}{_MODEL_EXTENSION}") # Autoencoder model
 
-# import wandb
+    _THRESHOLD_MODEL_LABEL: str = "threshold"
+    THRESHOLD_MODEL: str = join(_MODEL_ROOT, f"{_THRESHOLD_MODEL_LABEL}{_MODEL_EXTENSION}") # Threshold model
 
-# class WandbConfig:
-#     """
-#     Configuration for Weights & Biases logging.
-#     """
-# 
-#     ENTITY: str = os.getenv("ENTITY")
-#     PROJECT: str = os.getenv("PROJECT")
-# 
-#     def init_run(self, name: str):
-#         """
-#         Initializes a Weights & Biases run with predefined settings.
-#         """
-# 
-#         return wandb.init(
-#             entity=self.ENTITY,
-#             project=self.PROJECT,
-#             name=name
-#         )
+    @classmethod
+    def autoencoder_model(cls, accuracy: float) -> str:
+        return join(cls._MODEL_ROOT, f"{cls._AUTOENCODER_MODEL_LABEL}-{str(accuracy)}{cls._MODEL_EXTENSION}")
+
+    @classmethod
+    def threshold_model(cls, accuracy: float) -> str:
+        return join(cls._MODEL_ROOT, f"{cls._THRESHOLD_MODEL_LABEL}-{str(accuracy)}{cls._MODEL_EXTENSION}")
+
+
+if WANDB:
+    import wandb
+
+    class WandbConfig:
+        """
+        Configuration for Weights & Biases logging.
+        """
+
+        ENTITY: str = os.getenv("ENTITY")
+        PROJECT: str = os.getenv("PROJECT")
+        
+        @classmethod
+        def init_run(cls, name: str):
+            """
+            Initializes a Weights & Biases run with predefined settings.
+            """
+
+            return wandb.init(
+                entity=cls.ENTITY,
+                project=cls.PROJECT,
+                name=name
+            )
