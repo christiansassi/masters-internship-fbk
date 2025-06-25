@@ -21,6 +21,9 @@ from types import SimpleNamespace
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# Local import
+import utils
+
 # Load Environment Variables
 dotenv.load_dotenv()
 
@@ -131,9 +134,14 @@ class WandbConfig:
         """
 
         if WANDB:
-
+            
+            # Dynamic import
             import wandb
 
+            # Clear Wandb cache
+            utils.clear_wandb_cache()
+
+            # Init Wandb obj
             return wandb.init(
                 entity=cls.ENTITY,
                 project=cls.PROJECT,
@@ -141,6 +149,10 @@ class WandbConfig:
             )
         
         else:
+
+            # Init dummy Wandb obj
             run = SimpleNamespace()
             run.log = lambda *args: None
             run.finish = lambda *args: None
+
+            return run
