@@ -26,7 +26,6 @@ dotenv.load_dotenv()
 USE_GPU: bool = True
 WANDB: bool = True
 VERBOSE: int = 0
-N_CLIENTS: int = os.cpu_count() - 1
 
 if not USE_GPU and len(tf.config.list_physical_devices("GPU")) > 0:
     tf.config.set_visible_devices([], "GPU")
