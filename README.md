@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
 - [State of the Art](#state-of-the-art)
+- [Future Work](#future-work)
 - [Training Pipeline](#training-pipeline)
 - [Deployment Pipeline](#deployment-pipeline)
   - [Inputs](#inputs)
@@ -42,6 +43,10 @@ Following this rationale, an intriguing avenue of exploration involves combining
 By integrating these two works, it would be possible to develop a novel federated learning solution for ICSs. This would essentially be a decentralized version of [DAICS](papers/DAICS_A_Deep_Learning_Solution_for_Anomaly_Detection_in_Industrial.pdf), made feasible by leveraging the insights from [FLAD](papers/FLAD_Adaptive_Federated_Learning_for_DDoS_Attack_Detection.pdf). Subsequently, similar to the methodology in [FATRAF: Federated Learning based Autoencoder Transformer Fourier](papers/FATRAF_Federated_Learning_based_Autoencoder_Transformer_Fourier.pdf), it would be valuable to compare the performance of this new decentralized solution against its centralized counterpart. Theoretically, and based on the results from [FATRAF](papers/FATRAF_Federated_Learning_based_Autoencoder_Transformer_Fourier.pdf), the centralized solution is expected to exhibit slightly superior performance; however, overcoming this performance gap is a primary challenge in federated learning systems.
 
 The decision to focus solely on these two papers for now is driven by a desire for simplicity and effectiveness, as their combination appears to be a promising starting point.
+
+# Future Work
+
+TODO
 
 # Training Pipeline
 
