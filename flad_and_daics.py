@@ -96,9 +96,9 @@ class Client:
     
     def _autoencoder_train(self, model: Model):
         """
-        Trains the local autoencoder using the provided Keras model as a baseline.
+        Trains the local autoencoder model using the provided Keras autoencoder model as a baseline.
 
-        :param model: The Keras model to use as the baseline for training.
+        :param model: The Keras autoencoder model to use as the baseline for training.
         :type model: `tf.keras.Model`
         """
         
@@ -143,10 +143,10 @@ class Client:
     
     def _autoencoder_evaluate(self, model: Model) -> float:
         """
-        Evaluates the given model using the current client's data.
-        The provided model should ideally be the result of an aggregation of models.
+        Evaluates the given autoencoder model using the current client's data.
+        The provided autoencoder model should ideally be the result of an aggregation of models.
 
-        :param model: The Keras model to be evaluated.
+        :param model: The Keras autoencoder model to be evaluated.
         :type model: `tf.keras.Model`
 
         :return: The accuracy score.
@@ -199,7 +199,13 @@ class Client:
         return self._autoencoder_info["accuracy_score"]
 
     def _threshold_train(self, model: Model):
-        
+        """
+        Trains the local threshold model using the provided Keras threshold model as a baseline.
+
+        :param model: The Keras threshold model to use as the baseline for training.
+        :type model: `tf.keras.Model`
+        """
+
         # Clone the input model
         self._threshold = clone(src=model)
 
@@ -269,8 +275,17 @@ class Client:
             verbose=config.VERBOSE
         )
 
-    def _threshold_evaluate(self):
-        
+    def _threshold_evaluate(self) -> float:
+        """
+        Evaluates the given threshold model using the current client's data.
+
+        :param model: The Keras threshold model to be evaluated.
+        :type model: `tf.keras.Model`
+
+        :return: The accuracy score.
+        :rtype: `float`
+        """
+
         # Extract steps
         steps = self._threshold_info["steps"]
 
@@ -526,7 +541,10 @@ class Server:
         # Save best model
         best_model.save(filepath=config.ModelConfig.autoencoder_model(), overwrite=True)
 
-        # TODO perform threshold training for each client
+        # Train threshold model
+        for client in self._clients:
+            client._threshold_train(model=self._global_threshold)
+            client._threshold_evaluate()
 
         return best_model
 
