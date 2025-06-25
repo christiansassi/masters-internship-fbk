@@ -514,5 +514,3 @@ if __name__ == "__main__":
     autoencoder.save(filepath=config.ModelConfig.autoencoder_model(), overwrite=True)
 
     run.finish()
-
-#dummy
