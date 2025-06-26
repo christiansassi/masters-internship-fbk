@@ -102,11 +102,11 @@ class ModelConfig:
 
     @classmethod
     def autoencoder_model(cls, accuracy: float = None) -> str:
-        return join(cls.AUTOENCODER_MODEL_ROOT, f"{cls.AUTOENCODER_MODEL_BASENAME}-{str(accuracy)}{cls.MODEL_EXTENSION}")
+        return join(cls.AUTOENCODER_MODEL_ROOT, f"{cls.AUTOENCODER_MODEL_BASENAME}{'_' + str(accuracy) if accuracy is not None else ''}{cls.MODEL_EXTENSION}")
 
     @classmethod
-    def threshold_model(cls, accuracy: float = None) -> str:
-        return join(cls.THRESHOLD_MODEL_ROOT, f"{cls.THRESHOLD_MODEL_BASENAME}-{str(accuracy)}{cls.MODEL_EXTENSION}")
+    def threshold_model(cls, client_id: str, accuracy: float = None) -> str:
+        return join(cls.THRESHOLD_MODEL_ROOT, f"{cls.THRESHOLD_MODEL_BASENAME}-{client_id}{'_' + str(accuracy) if accuracy is not None else ''}{cls.MODEL_EXTENSION}")
 
 # Create folders
 if not exists(ModelConfig.MODEL_RUNTIME):
