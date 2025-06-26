@@ -110,10 +110,10 @@ def process_dataset(df: pd.DataFrame, output_src: str):
     sensor_data = df[config.DatasetConfig.SENSORS].to_numpy()
     labels_array = labels.to_numpy()
 
-    x = np.empty((num_samples, config.DatasetConfig.ROWS_PER_SAMPLE, len(config.DatasetConfig.SENSORS)), dtype=sensor_data.dtype)
+    x = np.empty((num_samples, config.DatasetConfig.ROWS_PER_SAMPLE, len(config.DatasetConfig.SENSORS)), dtype=np.float32)
     y = np.empty(num_samples, dtype=labels_array.dtype)
 
-    for i in track(range(num_samples), description=f"{utils.log_status()} Preparing {output_src}"):
+    for i in track(range(num_samples), description=f"{utils.log_timestamp_status()} Preparing {output_src}"):
 
         x[i] = sensor_data[i : i + config.DatasetConfig.ROWS_PER_SAMPLE]
         y[i] = labels_array[i + config.DatasetConfig.ROWS_PER_SAMPLE]
