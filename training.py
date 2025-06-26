@@ -3,7 +3,7 @@ import config
 import utils
 
 # External imports
-from os import listdir, remove
+from os import getenv, listdir, remove
 from os.path import join
 
 import h5py
@@ -79,7 +79,7 @@ class Client:
         self._threshold: Model = None
 
         # Threshold data (x_train, x_val, x_test) initially set to None
-        self._threshold_data: dict = None
+        self._threshold_data: dict = {}
 
         # Threshold info
         self._threshold_info: dict = {
@@ -324,6 +324,24 @@ class Client:
 
         return self._threshold_info["accuracy_score"]
 
+    def get_autoencoder_model(self) -> Model:
+        """
+        Returns the autoencoder model of the current client
+
+        :return: The autoencoder model.
+        :rtype: `tf.keras.Model`
+        """
+        return clone(src=self._threshold)
+
+    def get_threshold_model(self) -> Model:
+        """
+        Returns the threshold model of the current client
+
+        :return: The threshold model.
+        :rtype: `tf.keras.Model`
+        """
+        return clone(src=self._threshold)
+
 class Server:
     def __init__(
             self, 
@@ -343,6 +361,11 @@ class Server:
 
         # Set the clients
         self._clients: list[Client] = clients
+        
+        #! This is not needed during the deployment
+        for client in self._clients:
+            client._autoencoder = clone(src=self._global_autoencoder)
+            client._threshold = clone(src=self._global_threshold)
 
         # Set FLAD hyperparameters
         self._min_epochs: int = min_epochs
@@ -538,11 +561,6 @@ class Server:
         # Save best model
         best_model.save(filepath=config.ModelConfig.autoencoder_model(), overwrite=True)
 
-        # Train threshold model
-        for client in self._clients:
-            client._threshold_train(model=self._global_threshold)
-            client._threshold_evaluate()
-
         return best_model
 
 def random_autoencoder_model(x_shape: tuple, hidden_units: int = 10, learning_rate: float = 0.0001) -> Model:
@@ -662,9 +680,17 @@ if __name__ == "__main__":
     hf = h5py.File(name=config.DatasetConfig.OUTPUT_NORMAL)
     x = np.array(hf["x"]).astype(np.float32)
 
-    # Create a random autoencoder model
-    logging.info(f"Creating autoencoder model")
-    autoencoder = random_autoencoder_model(x_shape=x.shape[1:])
+    if config.RUN_TYPE in [config.RUN_TYPE.ALL, config.RUN_TYPE.AUTOENCODER]:
+
+        # Create a random autoencoder model
+        logging.info(f"Creating autoencoder model")
+        autoencoder = random_autoencoder_model(x_shape=x.shape[1:])
+    
+    else:
+
+        # Loading autoencoder model
+        logging.info(f"Loading autoencoder model")
+        autoencoder = load_model(getenv("AUTOENCODER_MODEL"))
 
     # Create a random threshold model
     logging.info(f"Creating threshold model")
@@ -678,10 +704,31 @@ if __name__ == "__main__":
     logging.info(f"Initializing server")
     server = Server(autoencoder=autoencoder, threshold=threshold, clients=clients)
 
-    # Start federated learning
-    run = config.WandbConfig.init_run(name="Autoencoder model")
+    if config.RUN_TYPE in [config.RUN_TYPE.ALL, config.RUN_TYPE.AUTOENCODER]:
 
-    logging.info(f"Starting federated learning")
-    autoencoder = server.federated_learning()
+        # Start federated learning
+        run = config.WandbConfig.init_run(name="Autoencoder model")
 
-    run.finish()
+        logging.info(f"Starting federated learning")
+        autoencoder = server.federated_learning()
+
+        run.finish()
+
+    if config.RUN_TYPE in [config.RUN_TYPE.ALL, config.RUN_TYPE.THRESHOLD]:
+
+        # Train the threshold model of each client
+        for index, client in enumerate(clients):
+            
+            # Train model
+            print(f"{utils.log_timestamp_status()}[{index + 1} / {len(clients)}] Training {str(client)}", end="\r")
+            client._threshold_train(model=threshold)
+
+            # Evaluate model
+            print(f"{utils.log_timestamp_status()}[{index + 1} / {len(clients)}] Evaluating {str(client)}", end="\r")
+            accuracy = client._threshold_evaluate()
+
+            # Save model
+            client.get_threshold_model().save(filepath=config.ModelConfig.threshold_model(client_id=str(client), accuracy=accuracy), overwrite=True)
+        
+        print(" "*100, end="\r")
+        print(f"Trained and Evaluated {len(clients)} client(s)")
