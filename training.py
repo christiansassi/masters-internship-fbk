@@ -23,7 +23,6 @@ from uuid import uuid4
 from time import time
 
 import logging
-utils.configure_log()
 
 def clone(src: Model, weights: list | None = None):
     """
@@ -703,7 +702,7 @@ if __name__ == "__main__":
     # Load dataset
     logging.info(f"Loading dataset")
     hf = h5py.File(name=config.DatasetConfig.OUTPUT_NORMAL)
-    x = np.array(hf["x"]).astype(np.float32)
+    x = hf["x"]
 
     if config.RUN_TYPE in [config.RUN_TYPE.ALL, config.RUN_TYPE.AUTOENCODER]:
 
