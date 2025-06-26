@@ -334,7 +334,7 @@ class Client:
 
     def get_autoencoder_model(self) -> Model:
         """
-        Returns the autoencoder model of the current client
+        Returns the autoencoder model of the current client.
 
         :return: The autoencoder model.
         :rtype: `tf.keras.Model`
@@ -343,7 +343,7 @@ class Client:
 
     def get_threshold_model(self) -> Model:
         """
-        Returns the threshold model of the current client
+        Returns the threshold model of the current client.
 
         :return: The threshold model.
         :rtype: `tf.keras.Model`
@@ -354,7 +354,6 @@ class Server:
     def __init__(
             self, 
             autoencoder: Model, 
-            threshold: Model, 
             clients: list[Client], 
             min_epochs: int = config.FLADHyperparameters.MIN_EPOCHS,
             max_epochs: int = config.FLADHyperparameters.MAX_EPOCHS,
@@ -363,9 +362,8 @@ class Server:
             patience: int = config.FLADHyperparameters.PATIENCE
         ):
 
-        # Set the initial global autoencoder and threshold models
+        # Set the initial global autoencoder model
         self._global_autoencoder: Model = clone(src=autoencoder)
-        self._global_threshold: Model = clone(src=threshold)
 
         # Set the clients
         self._clients: list[Client] = clients
@@ -373,7 +371,6 @@ class Server:
         #! This is not needed during the deployment
         for client in self._clients:
             client._autoencoder = clone(src=self._global_autoencoder)
-            client._threshold = clone(src=self._global_threshold)
 
         # Set FLAD hyperparameters
         self._min_epochs: int = min_epochs
@@ -476,6 +473,13 @@ class Server:
         return selected_clients
     
     def federated_learning(self):
+        """
+        Orchestrates the federated learning process for the autoencoder model.
+        This function manages rounds of client selection, model training on clients,
+        global model aggregation, and evaluation, continuing until a stop condition
+        (patience limit) is met. It tracks the best performing global model and
+        saves it.
+        """
 
         # All the clients partecipate in the first round
         selected_clients = self._select_clients()
@@ -574,8 +578,15 @@ class Server:
 
         # Save best model
         best_model.save(filepath=config.ModelConfig.autoencoder_model(), overwrite=True)
+    
+    def get_autoencoder_model(self) -> Model:
+        """
+        Returns the global autoencoder model.
 
-        return best_model
+        :return: The global autoencoder model.
+        :rtype: `tf.keras.Model`
+        """
+        return clone(self._global_autoencoder)
 
 def random_autoencoder_model(x_shape: tuple, hidden_units: int = 10, learning_rate: float = 0.0001) -> Model:
     """
@@ -716,7 +727,7 @@ if __name__ == "__main__":
 
     # Create the server
     logging.info(f"Initializing server")
-    server = Server(autoencoder=autoencoder, threshold=threshold, clients=clients)
+    server = Server(autoencoder=autoencoder, clients=clients)
 
     if config.RUN_TYPE in [config.RUN_TYPE.ALL, config.RUN_TYPE.AUTOENCODER]:
 
@@ -724,7 +735,7 @@ if __name__ == "__main__":
         run = config.WandbConfig.init_run(name="Autoencoder model")
 
         logging.info(f"Starting federated learning")
-        autoencoder = server.federated_learning()
+        server.federated_learning()
 
         run.finish()
 
