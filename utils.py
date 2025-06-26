@@ -123,3 +123,5 @@ def dynamic_round(value: int | float, reference_value: int | float) -> float:
 
         value = str(value)
         return float(value[:value.find(".") + len(''.join(result)) + 2])
+
+configure_log()
