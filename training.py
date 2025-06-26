@@ -59,10 +59,16 @@ def clone(src: Model, weights: list | None = None):
     return model
 
 class Client:
-    def __init__(self, autoencoder_data: dict):
+    def __init__(self, autoencoder_data: dict, client_id: str = None):
 
-        # Generate an id for the current client (useful while debugging)
-        self._id: str = str(uuid4())
+        # Generate an id for the current client (useful while debugging) or take the one given in input
+        try:
+            if str(uuid.UUID(client_id, version=4)).lower() != client_id.lower():
+                client_id = str(uuid4())
+        except:
+            client_id = str(uuid4())
+
+        self._id: str = client_id
 
         # Autoencoder model
         self._autoencoder: Model = None
@@ -520,6 +526,8 @@ class Server:
             logging.info(f"Current accuracy score: {utils.dynamic_round(value=self._autoencoder_average_accuracy_score, reference_value=max_accuracy_score)}")
             logging.info(f"Max accuracy score: {utils.dynamic_round(value=max_accuracy_score, reference_value=self._autoencoder_average_accuracy_score)}")
 
+            time_per_round = time() - start
+
             #? Wandb log
             run.log({
                 "round": round_num, 
@@ -527,7 +535,7 @@ class Server:
                 "score": self._autoencoder_average_accuracy_score, 
                 "best": max_accuracy_score,
                 "stop_counter": stop_counter,
-                "time_per_round": time() - start
+                "time_per_round": time_per_round
             })
             #? ---
 
@@ -548,6 +556,7 @@ class Server:
                 stop_counter = stop_counter + 1
 
             logging.info(f"Stop counter: {stop_counter} / {self._patience}")
+            logging.info(f"Time per round: {time_per_round}")
 
             # Check stop conditions
             if stop_counter >= self._patience:
@@ -733,7 +742,7 @@ if __name__ == "__main__":
             accuracy = client._threshold_evaluate()
 
             # Save model
-            client.get_threshold_model().save(filepath=config.ModelConfig.threshold_model(client_id=str(client), accuracy=accuracy), overwrite=True)
+            client.get_threshold_model().save(filepath=config.ModelConfig.threshold_model(client_id=str(client)), overwrite=True)
         
         print(" "*100, end="\r")
         print(f"Trained and Evaluated {len(clients)} client(s)")
