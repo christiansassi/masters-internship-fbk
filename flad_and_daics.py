@@ -448,7 +448,6 @@ class Server:
 
         # All the clients partecipate in the first round
         selected_clients = self._select_clients()
-        prev_clients = set()
 
         best_model = self._global_autoencoder
         max_accuracy_score = float("-inf")
@@ -505,29 +504,20 @@ class Server:
             #? ---
 
             # Check for improvements
-            skip = False
-
             if self._autoencoder_average_accuracy_score > max_accuracy_score:
                 max_accuracy_score = self._autoencoder_average_accuracy_score
                 best_model = clone(src=self._global_autoencoder)
                 stop_counter = 0
 
-                # Save the best model
+                # Remove any previous saved model
+                for f in listdir(config.ModelConfig.AUTOENCODER_MODEL_ROOT):
+                    if f.endswith(config.ModelConfig.MODEL_EXTENSION):
+                        remove(join(config.ModelConfig.AUTOENCODER_MODEL_ROOT, f))
+
                 best_model.save(filepath=config.ModelConfig.autoencoder_model(accuracy=utils.dynamic_round(max_accuracy_score, self._autoencoder_average_accuracy_score)), overwrite=True)
+
             else:
                 stop_counter = stop_counter + 1
-                skip = True
-            
-            tmp = set([str(client) for client in selected_clients])
-
-            if not skip:
-
-                if tmp == prev_clients:
-                    stop_counter = stop_counter + 1
-                else:
-                    stop_counter = 0
-
-            prev_clients = tmp
 
             logging.info(f"Stop counter: {stop_counter} / {self._patience}")
 
