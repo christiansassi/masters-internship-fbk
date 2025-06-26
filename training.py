@@ -20,6 +20,8 @@ from sklearn.model_selection import train_test_split
 
 from uuid import uuid4
 
+from time import time
+
 import logging
 utils.configure_log()
 
@@ -479,6 +481,8 @@ class Server:
 
         while True:
 
+            start = time()
+
             print("")
             logging.info(f"---------- Round {round_num + 1} ----------")
 
@@ -522,7 +526,8 @@ class Server:
                 "clients": len(selected_clients),
                 "score": self._autoencoder_average_accuracy_score, 
                 "best": max_accuracy_score,
-                "stop_counter": stop_counter
+                "stop_counter": stop_counter,
+                "time_per_round": time() - start
             })
             #? ---
 
