@@ -16,6 +16,7 @@ import tensorflow as tf
 from datetime import datetime
 
 from types import SimpleNamespace
+from enum import Enum
 
 # Disable FutureWarning
 import warnings
@@ -27,7 +28,7 @@ import utils
 # Load Environment Variables
 dotenv.load_dotenv()
 
-#? --- Global Script Settings ---
+#? --- User Settings ---
 USE_GPU: bool = True
 WANDB: bool = True
 VERBOSE: int = 0
@@ -156,3 +157,12 @@ class WandbConfig:
             run.finish = lambda *args: None
 
             return run
+
+#? --- Script Configuration ---
+class RunType(Enum):
+
+    ALL: int = 0
+    AUTOENCODER: int = 1
+    THRESHOLD: int = 2
+
+RUN_TYPE = RunType.THRESHOLD
