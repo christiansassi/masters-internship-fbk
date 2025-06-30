@@ -326,6 +326,15 @@ class Client:
 
         return self._threshold_info["accuracy_score"]
 
+    def set_autoencoder_model(self, model: Model):
+        """
+        Set the autoencoder model of the current client
+
+        :param model: The Keras autoencoder model to be set.
+        :type model: `tf.keras.Model`
+        """
+        self._autoencoder = clone(src=model)
+
     def get_autoencoder_model(self) -> Model:
         """
         Returns the autoencoder model of the current client.
@@ -335,6 +344,15 @@ class Client:
         """
         return clone(src=self._threshold)
 
+    def set_threshold_model(self, model: Model):
+        """
+        Set the threshold model of the current client
+
+        :param model: The Keras threshold model to be set.
+        :type model: `tf.keras.Model`
+        """
+        self._autoencoder = clone(src=model)
+
     def get_threshold_model(self) -> Model:
         """
         Returns the threshold model of the current client.
@@ -343,6 +361,9 @@ class Client:
         :rtype: `tf.keras.Model`
         """
         return clone(src=self._threshold)
+
+    def set_autoencoder_model(self, model: Model):
+        self._autoencoder = clone(src=model)
 
 class Server:
     def __init__(
@@ -364,7 +385,9 @@ class Server:
         
         #! This is not needed during the deployment
         for client in self._clients:
-            client._autoencoder = clone(src=self._global_autoencoder)
+
+            if client._autoencoder is None:
+                client._autoencoder = clone(src=self._global_autoencoder)
 
         # Set FLAD hyperparameters
         self._min_epochs: int = min_epochs
