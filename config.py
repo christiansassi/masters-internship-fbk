@@ -84,6 +84,9 @@ class DatasetConfig:
         "PIT501", "PIT502", "PIT503", "FIT601", "P601", "P602", "P603"
     ]
 
+    NORMAL_LABEL: int = 0
+    ATTACK_LABEL: int = 0
+
 #? --- Model Configuration ---
 class ModelConfig:
     """

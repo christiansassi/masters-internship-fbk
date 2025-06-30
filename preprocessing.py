@@ -103,7 +103,7 @@ def process_dataset(df: pd.DataFrame, output_src: str):
     """
 
     # Extract labels and convert them into int
-    labels = df["Normal/Attack"].map({"Normal": 0, "Attack": 1}).astype(np.int32)
+    labels = df["Normal/Attack"].map({"Normal": config.DatasetConfig.NORMAL_LABEL, "Attack": config.DatasetConfig.ATTACK_LABEL}).astype(np.int32)
     
     # Organize rows in windows
     num_samples = df.shape[0] - (config.DatasetConfig.ROWS_PER_SAMPLE + 1)
