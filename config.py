@@ -7,7 +7,7 @@ os.environ["WANDB_SILENT"] = "true"
 os.environ["WANDB_CONSOLE"] = "off"
 
 from os.path import join, exists
-from os import makedirs
+from os import makedirs, getcwd
 
 import dotenv
 
@@ -56,10 +56,11 @@ class DatasetConfig:
     Configuration for dataset paths, processing, and structure.
     """
 
-    ROOT: str = "datasets"
-    DATASET_NAME: str = "SWaT2015"
+    ROOT: str = join(getcwd(), "datasets")
 
+    DATASET_NAME: str = "SWaT2015"
     DATASET_PATH: str = join(ROOT, DATASET_NAME)
+
     INPUT_NORMAL: str = join(DATASET_PATH, "original", "SWaT_Dataset_Normal.csv")
     INPUT_ATTACK: str = join(DATASET_PATH, "original", "SWaT_Dataset_Attack.csv")
     OUTPUT_NORMAL: str = join(DATASET_PATH, "processed", "SWaT_Dataset_Normal.hdf5")
@@ -93,13 +94,18 @@ class ModelConfig:
     MODEL_RUNTIME: str = join(MODEL_ROOT, f"{int(datetime.now().timestamp())}")
     MODEL_EXTENSION: str = ".keras"
 
-    AUTOENCODER_MODEL_ROOT: str = join(MODEL_RUNTIME, "autoencoder")
-    AUTOENCODER_MODEL_BASENAME: str = "autoencoder"
-    AUTOENCODER_MODEL: str = join(AUTOENCODER_MODEL_ROOT, f"{AUTOENCODER_MODEL_BASENAME}{MODEL_EXTENSION}") # Autoencoder model
+    FINAL_MODEL_ROOT: str = join(getcwd(), "models")
 
-    THRESHOLD_MODEL_ROOT: str = join(MODEL_RUNTIME, "threshold")
+    AUTOENCODER_MODEL_BASENAME: str = "autoencoder"
+    AUTOENCODER_MODEL_ROOT: str = join(MODEL_RUNTIME, AUTOENCODER_MODEL_BASENAME)
+    AUTOENCODER_MODEL: str = join(AUTOENCODER_MODEL_ROOT, f"{AUTOENCODER_MODEL_BASENAME}{MODEL_EXTENSION}")
+    FINAL_AUTOENCODER_MODEL_ROOT: str = join(FINAL_MODEL_ROOT, AUTOENCODER_MODEL_BASENAME)
+    FINAL_AUTOENCODER_MODEL: str = join(FINAL_AUTOENCODER_MODEL_ROOT, f"{AUTOENCODER_MODEL_BASENAME}{MODEL_EXTENSION}")
+
     THRESHOLD_MODEL_BASENAME: str = "threshold"
-    THRESHOLD_MODEL: str = join(THRESHOLD_MODEL_ROOT, f"{THRESHOLD_MODEL_BASENAME}{MODEL_EXTENSION}") # Threshold model
+    THRESHOLD_MODEL_ROOT: str = join(MODEL_RUNTIME, THRESHOLD_MODEL_BASENAME)
+    THRESHOLD_MODEL: str = join(THRESHOLD_MODEL_ROOT, f"{THRESHOLD_MODEL_BASENAME}{MODEL_EXTENSION}")
+    FINAL_THRESHOLD_MODEL_ROOT: str = join(FINAL_MODEL_ROOT, THRESHOLD_MODEL_BASENAME)
 
     @classmethod
     def autoencoder_model(cls, accuracy: float = None) -> str:
@@ -139,9 +145,6 @@ class WandbConfig:
             # Dynamic import
             import wandb
 
-            # Clear Wandb cache
-            utils.clear_wandb_cache()
-
             # Init Wandb obj
             return wandb.init(
                 entity=cls.ENTITY,
@@ -157,6 +160,9 @@ class WandbConfig:
             run.finish = lambda *args: None
 
             return run
+
+# Clear Wandb cache
+utils.clear_wandb_cache()
 
 #? --- Script Configuration ---
 class RunType(Enum):

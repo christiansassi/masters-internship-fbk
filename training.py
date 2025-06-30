@@ -3,6 +3,7 @@ import config
 import utils
 from server_and_client import Server, Client
 
+# External imports
 from os import getenv
 
 import h5py
@@ -142,9 +143,9 @@ if __name__ == "__main__":
     
     else:
 
-        # Loading autoencoder model
+        # load autoencoder model
         logging.info(f"Loading autoencoder model")
-        autoencoder = load_model(getenv("AUTOENCODER_MODEL"))
+        autoencoder = load_model(config.ModelConfig.FINAL_AUTOENCODER_MODEL_ROOT)
 
     # Create a random threshold model
     logging.info(f"Creating threshold model")
