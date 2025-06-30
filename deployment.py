@@ -7,8 +7,7 @@ from server_and_client import Server, Client
 from os import getenv, listdir
 from os.path import join
 
-from keras.models import Model  # type: ignore
-from keras.saving import load_model #type: ignore
+from keras.models import Model, load_model   # type: ignore
 
 import logging
 
@@ -16,7 +15,7 @@ if __name__ == "__main__":
 
     # Load autoencoder model
     logging.info(f"Loading autoencoder model")
-    autoencoder = load_model(r"C:\Users\sassi\Desktop\masters-internship-fbk\models\autoencoder\autoencoder.keras")
+    autoencoder = load_model(config.ModelConfig.FINAL_AUTOENCODER_MODEL)
 
     # Loading threshold models
     for item in listdir(config.ModelConfig.FINAL_THRESHOLD_MODEL_ROOT):

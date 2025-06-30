@@ -115,16 +115,6 @@ class ModelConfig:
     def threshold_model(cls, client_id: str, accuracy: float = None) -> str:
         return join(cls.THRESHOLD_MODEL_ROOT, f"{cls.THRESHOLD_MODEL_BASENAME}-{client_id}{'_' + str(accuracy) if accuracy is not None else ''}{cls.MODEL_EXTENSION}")
 
-# Create folders
-if not exists(ModelConfig.MODEL_RUNTIME):
-    makedirs(name=ModelConfig.MODEL_RUNTIME, exist_ok=True)
-
-if not exists(ModelConfig.AUTOENCODER_MODEL_ROOT):
-    makedirs(name=ModelConfig.AUTOENCODER_MODEL_ROOT, exist_ok=True)
-
-if not exists(ModelConfig.THRESHOLD_MODEL_ROOT):
-    makedirs(name=ModelConfig.THRESHOLD_MODEL_ROOT, exist_ok=True)
-
 #? --- Wandb Configuration ---
 class WandbConfig:
     """
@@ -167,8 +157,21 @@ utils.clear_wandb_cache()
 #? --- Script Configuration ---
 class RunType(Enum):
 
+    NONE: int = -1
     ALL: int = 0
     AUTOENCODER: int = 1
     THRESHOLD: int = 2
 
-RUN_TYPE = RunType.THRESHOLD
+RUN_TYPE = RunType.NONE
+
+# Create folders
+if RUN_TYPE in [RunType.ALL, RunType.AUTOENCODER, RunType.THRESHOLD]:
+
+    if not exists(ModelConfig.MODEL_RUNTIME):
+        makedirs(name=ModelConfig.MODEL_RUNTIME, exist_ok=True)
+
+    if not exists(ModelConfig.AUTOENCODER_MODEL_ROOT):
+        makedirs(name=ModelConfig.AUTOENCODER_MODEL_ROOT, exist_ok=True)
+
+    if not exists(ModelConfig.THRESHOLD_MODEL_ROOT):
+        makedirs(name=ModelConfig.THRESHOLD_MODEL_ROOT, exist_ok=True)
