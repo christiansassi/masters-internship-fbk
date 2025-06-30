@@ -18,6 +18,7 @@
       - [New Federated Learning Session](#new-federated-learning-session)
       - [`t_base`](#t_base)
   - [Visual Representation](#visual-representation)
+- [Important Notes](#important-notes)
 
 # Introduction
 
@@ -120,3 +121,11 @@ Unlike DAICS, where `t_base` is calculated only once (as the threshold model alo
     <source media="(prefers-color-scheme: dark)" srcset="pipeline/v2/pipeline-dark.png">
     <img src="pipeline/v2/pipeline-light.png" width="100%">
 </picture>
+
+# Important Notes
+
+> [!WARNING]
+> Windows users planning to use tensorflow with gpu should use the [tensorflow-gpu-win.bat](setup/tensorflow-gpu-win.bat) setup. More info [Install TensorFlow with pip](https://www.tensorflow.org/install/pip#windows-native).
+
+> [!WARNING]
+> The `.keras` models in the [models](models) folder are currently only compatible with **Keras 2.10**.

@@ -1,5 +1,5 @@
 h5py
-keras
+keras==2.10
 numpy
 pandas
 python-dotenv
