@@ -93,6 +93,12 @@ class Client:
         # Calculate total samples
         self._samples: int = sum([len(self._autoencoder_data[key]) for key in self._autoencoder_data.keys()])
 
+        # Set t_base to None
+        self._t_base = None
+
+        # Set max(threshold_outputs) to None
+        self._max_threshold_outputs
+
     def __str__(self) -> str:
         return self._id
     
@@ -326,6 +332,57 @@ class Client:
 
         return self._threshold_info["accuracy_score"]
 
+    def _calculate_t_base(self):
+
+        # Create a TensorFlow Dataset for the test data.
+        x = tf.data.Dataset.from_tensor_slices(
+            tensors=self._autoencoder_data["x_test"]
+        ).batch(batch_size=32, drop_remainder=False)
+
+        # Perform prediction using the batched dataset.
+        y_pred = self._autoencoder.predict(
+            x,
+            verbose=config.VERBOSE
+        )
+
+        # Reconstruct the ground truth (y_true) from the same batched dataset.
+        y_true_list = []
+
+        for batch in x:
+            y_true_list.append(batch.numpy())
+
+        y_true = np.concatenate(y_true_list, axis=0)
+
+        reconstruction_errors = np.mean(np.square(y_true - y_pred), axis=(1, 2))
+
+        self._t_base = reconstruction_errors.mean() + reconstruction_errors.std()
+
+    def _calculate_max_threshold_outputs(self):
+
+        # Create a TensorFlow Dataset for the test data.
+        x = tf.data.Dataset.from_tensor_slices(
+            tensors=self._threshold_data["x_test"]
+        ).batch(batch_size=32, drop_remainder=False)
+
+        # Perform prediction using the batched dataset.
+        y_pred = self._threshold.predict(
+            x,
+            verbose=config.VERBOSE
+        )
+
+        # Reconstruct the ground truth (y_true) from the same batched dataset.
+        y_true_list = []
+
+        for batch in x_test_dataset:
+            y_true_list.append(batch.numpy()) # Convert TensorFlow tensor batch back to NumPy array
+
+        y_true = np.concatenate(y_true_list, axis=0) # Combine all batches into a single NumPy array
+
+        # Calculate the reconstruction error.
+        threshold_outputs = np.mean(np.square(y_true - y_pred), axis=(1, 2))
+
+        self._max_threshold_outputs = threshold_outputs.max()
+
     def set_autoencoder_model(self, model: Model):
         """
         Set the autoencoder model of the current client
@@ -362,8 +419,10 @@ class Client:
         """
         return clone(src=self._threshold)
 
-    def set_autoencoder_model(self, model: Model):
-        self._autoencoder = clone(src=model)
+    def export(self) -> str:
+        filename = config.ServerAndClientsConfig.export_client(client=self)
+        pickle.dump(self, open(filename, "wb+"))
+        return filename
 
 class Server:
     def __init__(
