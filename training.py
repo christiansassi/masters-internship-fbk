@@ -133,7 +133,7 @@ if __name__ == "__main__":
     # Load dataset
     logging.info(f"Loading dataset")
     hf = h5py.File(name=config.DatasetConfig.OUTPUT_NORMAL)
-    x = hf["x"]
+    x = np.array(hf["x"])
 
     if config.RUN_TYPE in [config.RUN_TYPE.ALL, config.RUN_TYPE.AUTOENCODER]:
 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
 
         # load autoencoder model
         logging.info(f"Loading autoencoder model")
-        autoencoder = load_model(config.ModelConfig.FINAL_AUTOENCODER_MODEL_ROOT)
+        autoencoder = load_model(config.ModelConfig.FINAL_AUTOENCODER_MODEL)
 
     # Create a random threshold model
     logging.info(f"Creating threshold model")
@@ -187,3 +187,12 @@ if __name__ == "__main__":
         
         print(" "*100, end="\r")
         print(f"Trained and Evaluated {len(clients)} client(s)")
+    
+    # Save the clients
+    for index, client in enumerate(clients):
+
+        print(f"{utils.log_timestamp_status()}[{index + 1} / {len(clients)}] Saving {str(client)}", end="\r")
+        client.export()
+
+    print(" "*100, end="\r")
+    print(f"Saved {len(clients)} client(s)")

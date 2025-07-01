@@ -3,8 +3,10 @@ import config
 import utils
 
 # External imports
-from os import listdir, remove
-from os.path import join
+from os import listdir, remove, mkdir
+from os.path import join, exists
+
+import shutil
 
 import numpy as np
 
@@ -16,6 +18,8 @@ import uuid
 from uuid import uuid4
 
 from time import time
+
+import pickle
 
 import logging
 
@@ -97,7 +101,7 @@ class Client:
         self._t_base = None
 
         # Set max(threshold_outputs) to None
-        self._max_threshold_outputs
+        self._max_threshold_outputs = None
 
     def __str__(self) -> str:
         return self._id
@@ -419,10 +423,25 @@ class Client:
         """
         return clone(src=self._threshold)
 
-    def export(self) -> str:
-        filename = config.ServerAndClientsConfig.export_client(client=self)
-        pickle.dump(self, open(filename, "wb+"))
-        return filename
+    def export(self) -> tuple:
+        """
+        Returns the folder of the client, along with its pickle file and keras files for the autoencoder and threshold models.
+
+        :return: File paths.
+        :rtype: `tuple`
+        """
+        folder, client, autoencoder, threshold = config.ServerAndClientConfig.export_client(client=self)
+
+        if exists(folder):
+            shutil.rmtree(folder)
+
+        mkdir(folder)
+
+        pickle.dump(self, open(client, "wb+"))
+        self._autoencoder.save(autoencoder)
+        self._threshold.save(threshold)
+
+        return folder, client, autoencoder, threshold
 
 class Server:
     def __init__(

@@ -47,16 +47,22 @@ class FLADHyperparameters:
 
     N_CLIENTS: int = os.cpu_count() - 1 # 13 50 90
 
-class ServerAndClientsConfig:
+class ServerAndClientConfig:
     """
-    Configuration for server and clients obj
+    Configuration for server and client obj
     """
 
-    CLIENTS_ROOT: str = join(getcwd(), "clients")
+    CLIENT_ROOT: str = join(getcwd(), "clients")
+    CLIENT_EXTENSION: str = ".pkl"
 
     @classmethod
-    def export_client(cls, client) -> str:
-        return join(cls.CLIENTS_ROOT, f"{str(client)}.pkl")
+    def export_client(cls, client) -> tuple:
+        return (
+            join(cls.CLIENT_ROOT, str(client)),
+            join(cls.CLIENT_ROOT, str(client), f"client{cls.CLIENT_EXTENSION}"),
+            join(cls.CLIENT_ROOT, str(client), f"{ModelConfig.AUTOENCODER_MODEL_BASENAME}{ModelConfig.MODEL_EXTENSION}"),
+            join(cls.CLIENT_ROOT, str(client), f"{ModelConfig.THRESHOLD_MODEL_BASENAME}{ModelConfig.MODEL_EXTENSION}")
+        )
 
 #? --- Dataset Configuration ---
 class DatasetConfig:
@@ -170,7 +176,7 @@ class RunType(Enum):
     AUTOENCODER: int = 1
     THRESHOLD: int = 2
 
-RUN_TYPE = RunType.NONE
+RUN_TYPE = RunType.THRESHOLD
 
 # Create folders
 if RUN_TYPE in [RunType.ALL, RunType.AUTOENCODER, RunType.THRESHOLD]:
