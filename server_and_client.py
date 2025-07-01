@@ -425,11 +425,13 @@ class Client:
 
     def export(self) -> tuple:
         """
-        Returns the folder of the client, along with its pickle file and keras files for the autoencoder and threshold models.
+        Returns the client's folder path, along with the file paths for its pickle file and the autoencoder and threshold Keras models.
 
         :return: File paths.
         :rtype: `tuple`
         """
+
+        # Get export paths
         folder, client, autoencoder, threshold = config.ServerAndClientConfig.export_client(client=self)
 
         if exists(folder):
@@ -437,9 +439,22 @@ class Client:
 
         mkdir(folder)
 
+        original_autoencoder = clone(self._autoencoder)
+        original_threshold = clone(self._threshold)
+
+        # Save class obj without tensorflow models
+        self._autoencoder = None
+        self._threshold = None
+
         pickle.dump(self, open(client, "wb+"))
-        self._autoencoder.save(autoencoder)
-        self._threshold.save(threshold)
+
+        # Save tensorflow models separatedly
+        original_autoencoder.save(autoencoder)
+        original_threshold.save(threshold)
+
+        # Restore tensorflow models
+        self._autoencoder = original_autoencoder
+        self._threshold = original_threshold
 
         return folder, client, autoencoder, threshold
 
