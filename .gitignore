@@ -3,6 +3,7 @@
 **/__pycache__/
 
 # Directories
+**/clients
 **/datasets
 **/keys
 **/private_scripts
