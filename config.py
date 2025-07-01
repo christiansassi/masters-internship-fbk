@@ -101,7 +101,7 @@ class DatasetConfig:
     ]
 
     NORMAL_LABEL: int = 0
-    ATTACK_LABEL: int = 0
+    ATTACK_LABEL: int = 1
 
 #? --- Model Configuration ---
 class ModelConfig:
