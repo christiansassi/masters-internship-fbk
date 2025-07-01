@@ -1,3 +1,7 @@
+# Local imports
+import config
+
+# External imports
 import os
 from os.path import exists
 import shutil
@@ -5,6 +9,12 @@ import shutil
 import logging
 
 from datetime import datetime
+
+from keras.models import Model # type: ignore
+
+import tensorflow as tf
+
+import numpy as np
 
 def clear_console():
     """
@@ -124,4 +134,5 @@ def dynamic_round(value: int | float, reference_value: int | float) -> float:
         value = str(value)
         return float(value[:value.find(".") + len(''.join(result)) + 2])
 
+clear_wandb_cache()
 configure_log()
