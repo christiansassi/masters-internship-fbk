@@ -22,9 +22,6 @@ from enum import Enum
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# Local import
-import utils
-
 # Load Environment Variables
 dotenv.load_dotenv()
 
@@ -49,6 +46,17 @@ class FLADHyperparameters:
     PATIENCE: int = 25
 
     N_CLIENTS: int = os.cpu_count() - 1 # 13 50 90
+
+class ServerAndClientsConfig:
+    """
+    Configuration for server and clients obj
+    """
+
+    CLIENTS_ROOT: str = join(getcwd(), "clients")
+
+    @classmethod
+    def export_client(cls, client) -> str:
+        return join(cls.CLIENTS_ROOT, f"{str(client)}.pkl")
 
 #? --- Dataset Configuration ---
 class DatasetConfig:
@@ -153,9 +161,6 @@ class WandbConfig:
             run.finish = lambda *args: None
 
             return run
-
-# Clear Wandb cache
-utils.clear_wandb_cache()
 
 #? --- Script Configuration ---
 class RunType(Enum):
