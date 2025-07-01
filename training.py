@@ -186,7 +186,7 @@ if __name__ == "__main__":
             client.get_threshold_model().save(filepath=config.ModelConfig.threshold_model(client_id=str(client)), overwrite=True)
         
         print(" "*100, end="\r")
-        print(f"Trained and Evaluated {len(clients)} client(s)")
+        print(f"{utils.log_timestamp_status()} Trained and Evaluated {len(clients)} client(s)")
     
     # Save the clients
     for index, client in enumerate(clients):
@@ -195,4 +195,4 @@ if __name__ == "__main__":
         client.export()
 
     print(" "*100, end="\r")
-    print(f"Saved {len(clients)} client(s)")
+    print(f"{utils.log_timestamp_status()} Saved {len(clients)} client(s)")
