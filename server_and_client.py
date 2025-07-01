@@ -48,10 +48,19 @@ def clone(src: Model, weights: list | None = None):
     model.set_weights(src.get_weights() if weights is None else weights)
 
     if src.optimizer is not None and src.loss is not None:
+
+        filtered_metrics = []
+        loss_name = src.loss.__name__ if hasattr(src.loss, "__name__") else str(src.loss)
+        
+        for metric in src.metrics:
+            metric_name = metric.__name__ if hasattr(metric, "__name__") else str(metric)
+            if metric_name not in ["loss", loss_name]:
+                filtered_metrics.append(metric)
+        
         model.compile(
             optimizer=src.optimizer.__class__.from_config(src.optimizer.get_config()),
             loss=src.loss,
-            metrics=src.metrics
+            metrics=filtered_metrics
         )
         
     return model
@@ -360,32 +369,6 @@ class Client:
         reconstruction_errors = np.mean(np.square(y_true - y_pred), axis=(1, 2))
 
         self._t_base = reconstruction_errors.mean() + reconstruction_errors.std()
-
-    def _calculate_max_threshold_outputs(self):
-
-        # Create a TensorFlow Dataset for the test data.
-        x = tf.data.Dataset.from_tensor_slices(
-            tensors=self._threshold_data["x_test"]
-        ).batch(batch_size=32, drop_remainder=False)
-
-        # Perform prediction using the batched dataset.
-        y_pred = self._threshold.predict(
-            x,
-            verbose=config.VERBOSE
-        )
-
-        # Reconstruct the ground truth (y_true) from the same batched dataset.
-        y_true_list = []
-
-        for batch in x_test_dataset:
-            y_true_list.append(batch.numpy()) # Convert TensorFlow tensor batch back to NumPy array
-
-        y_true = np.concatenate(y_true_list, axis=0) # Combine all batches into a single NumPy array
-
-        # Calculate the reconstruction error.
-        threshold_outputs = np.mean(np.square(y_true - y_pred), axis=(1, 2))
-
-        self._max_threshold_outputs = threshold_outputs.max()
 
     def set_autoencoder_model(self, model: Model):
         """
