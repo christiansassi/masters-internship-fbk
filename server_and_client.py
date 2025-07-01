@@ -37,33 +37,35 @@ def clone(src: Model, weights: list | None = None):
     :rtype: `tf.keras.Model`
     """
 
-    # Clone model
     model = clone_model(src)
 
-    # Build model (if not done yet)
     if not model.built:
         model.build(src.input_shape)
-    
-    # Set weights from src (input model) or given weights
+
     model.set_weights(src.get_weights() if weights is None else weights)
 
     if src.optimizer is not None and src.loss is not None:
 
-        filtered_metrics = []
-        loss_name = src.loss.__name__ if hasattr(src.loss, "__name__") else str(src.loss)
-        
-        for metric in src.metrics:
-            metric_name = metric.__name__ if hasattr(metric, "__name__") else str(metric)
-            if metric_name not in ["loss", loss_name]:
-                filtered_metrics.append(metric)
-        
+        cleaned_metrics = []
+
+
+        if hasattr(src, "metrics") and src.metrics is not None:
+
+            for m in src.metrics:
+
+                metric_name = m if isinstance(m, str) else getattr(m, "name", None)
+
+                if metric_name and metric_name != "loss" and metric_name != src.loss:
+                    cleaned_metrics.append(m)
+
         model.compile(
             optimizer=src.optimizer.__class__.from_config(src.optimizer.get_config()),
             loss=src.loss,
-            metrics=filtered_metrics
+            metrics=cleaned_metrics
         )
-        
+    
     return model
+
 
 class Client:
     def __init__(self, autoencoder_data: dict, client_id: str = None):
