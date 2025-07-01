@@ -425,9 +425,11 @@ class Client:
 
     def export(self) -> tuple:
         """
-        Returns the client's folder path, along with the file paths for its pickle file and the autoencoder and threshold Keras models.
+        Saves the current class instance as a pickle file, excluding the TensorFlow models (which are set to `None` for pickling). 
+        The TensorFlow models are saved separately using their dedicated functions.
+        When loading this pickled instance, remember to load the associated models from their respective Keras files.
 
-        :return: File paths.
+        :return: The client's folder path and the file paths for its pickle file, autoencoder Keras model, and threshold Keras model.
         :rtype: `tuple`
         """
 
