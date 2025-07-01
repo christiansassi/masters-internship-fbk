@@ -6,6 +6,12 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["WANDB_SILENT"] = "true"
 os.environ["WANDB_CONSOLE"] = "off"
 
+import logging
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
+
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 from os.path import join, exists
 from os import makedirs, getcwd
 
@@ -17,10 +23,6 @@ from datetime import datetime
 
 from types import SimpleNamespace
 from enum import Enum
-
-# Disable FutureWarning
-import warnings
-warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Load Environment Variables
 dotenv.load_dotenv()
