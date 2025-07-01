@@ -403,7 +403,7 @@ class Client:
         :return: The autoencoder model.
         :rtype: `tf.keras.Model`
         """
-        return clone(src=self._threshold)
+        return clone(src=self._autoencoder)
 
     def set_threshold_model(self, model: Model):
         """
@@ -412,7 +412,7 @@ class Client:
         :param model: The Keras threshold model to be set.
         :type model: `tf.keras.Model`
         """
-        self._autoencoder = clone(src=model)
+        self._threshold = clone(src=model)
 
     def get_threshold_model(self) -> Model:
         """
