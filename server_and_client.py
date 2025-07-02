@@ -101,8 +101,8 @@ class Client:
         # Threshold info
         self._threshold_info: dict = {
             "accuracy_score": 0,
-            "epochs": config.FLADHyperparameters.MAX_EPOCHS,
-            "steps": config.FLADHyperparameters.MAX_STEPS
+            "epochs": config.FLADAndDAICSHyperparameters.MAX_EPOCHS,
+            "steps": config.FLADAndDAICSHyperparameters.MAX_STEPS
         }
 
         # Calculate total samples
@@ -450,11 +450,11 @@ class Server:
             self, 
             autoencoder: Model, 
             clients: list[Client], 
-            min_epochs: int = config.FLADHyperparameters.MIN_EPOCHS,
-            max_epochs: int = config.FLADHyperparameters.MAX_EPOCHS,
-            min_steps: int = config.FLADHyperparameters.MIN_STEPS,
-            max_steps: int = config.FLADHyperparameters.MAX_STEPS,
-            patience: int = config.FLADHyperparameters.PATIENCE
+            min_epochs: int = config.FLADAndDAICSHyperparameters.MIN_EPOCHS,
+            max_epochs: int = config.FLADAndDAICSHyperparameters.MAX_EPOCHS,
+            min_steps: int = config.FLADAndDAICSHyperparameters.MIN_STEPS,
+            max_steps: int = config.FLADAndDAICSHyperparameters.MAX_STEPS,
+            patience: int = config.FLADAndDAICSHyperparameters.PATIENCE
         ):
 
         # Set the initial global autoencoder model

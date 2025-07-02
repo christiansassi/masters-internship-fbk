@@ -35,8 +35,8 @@ VERBOSE: int = 0
 if not USE_GPU and len(tf.config.list_physical_devices("GPU")) > 0:
     tf.config.set_visible_devices([], "GPU")
 
-#? --- FLAD Configuration ---
-class FLADHyperparameters:
+#? --- FLAD and DAICS Configuration ---
+class FLADAndDAICSHyperparameters:
     """
     Hyperparameters for FLAD
     """
@@ -48,6 +48,8 @@ class FLADHyperparameters:
     PATIENCE: int = 25
 
     N_CLIENTS: int = os.cpu_count() - 1 # 13 50 90
+
+    W_ANOMALY: int = 30
 
 class ServerAndClientConfig:
     """
