@@ -111,9 +111,6 @@ class Client:
         # Set t_base to None
         self._t_base = None
 
-        # Set max(threshold_outputs) to None
-        self._max_threshold_outputs = None
-
     def __str__(self) -> str:
         return self._id
     
