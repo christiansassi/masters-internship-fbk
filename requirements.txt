@@ -1,8 +1,0 @@
-h5py
-keras==2.10
-numpy
-pandas
-python-dotenv
-rich
-scikit_learn
-tensorflow
