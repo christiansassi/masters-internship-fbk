@@ -367,7 +367,7 @@ class Client:
 
         reconstruction_errors = np.mean(np.square(y_true - y_pred), axis=(1, 2))
 
-        self._t_base = reconstruction_errors.mean() + reconstruction_errors.std()
+        self._t_base = reconstruction_errors.mean() # + reconstruction_errors.std()
 
     def set_autoencoder_model(self, model: Model):
         """
