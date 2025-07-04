@@ -142,11 +142,11 @@ class Client:
 
         x_train = tf.data.Dataset.from_tensor_slices(
             (self._autoencoder_data["x_train"], self._autoencoder_data["x_train"])
-        ).batch(batch_size=train_batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE) # Use train_batch_size
+        ).batch(batch_size=train_batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE)
 
         x_val = tf.data.Dataset.from_tensor_slices(
             (self._autoencoder_data["x_val"], self._autoencoder_data["x_val"])
-        ).batch(batch_size=val_batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE) # Use val_batch_size
+        ).batch(batch_size=val_batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE)
 
         # Train the autoencoder
         self._autoencoder.fit(
@@ -186,11 +186,9 @@ class Client:
         batch_size = int(max(len(self._autoencoder_data["x_test"]) // steps, 1))
 
         # Create a TensorFlow Dataset for the test data.
-        # `drop_remainder=True` is used to ensure all batches passed to `predict` have
-        # the same shape, which helps prevent `tf.function` retracing warnings.
         x_test_dataset = tf.data.Dataset.from_tensor_slices(
             tensors=self._autoencoder_data["x_test"]
-        ).batch(batch_size=batch_size, drop_remainder=True)
+        ).batch(batch_size=batch_size, drop_remainder=False)
 
         # Perform prediction using the batched dataset.
         y_pred = self._autoencoder.predict(
@@ -199,9 +197,6 @@ class Client:
         )
 
         # Reconstruct the ground truth (y_true) from the same batched dataset.
-        # This is crucial because `drop_remainder=True` means `y_pred` will not
-        # include predictions for any partial last batch, so `y_true` must match
-        # the exact data that `y_pred` was generated from.
         y_true_list = []
 
         for batch in x_test_dataset:
@@ -210,9 +205,6 @@ class Client:
         y_true = np.concatenate(y_true_list, axis=0) # Combine all batches into a single NumPy array
 
         # Calculate the reconstruction error.
-        # As per the project's FLAD specific implementation, the error is negated
-        # to align with an objective of maximizing accuracy, even though autoencoders
-        # traditionally minimize reconstruction error.
         self._autoencoder_info["accuracy_score"] = -np.mean(np.square(y_true - y_pred))
 
         # Return the calculated "accuracy score" (negated reconstruction error).
@@ -239,8 +231,6 @@ class Client:
             data = self._autoencoder_data[key]
 
             # Calculate batch size for prediction.
-            # This ensures consistent batch sizes if `drop_remainder=True` is used.
-            # The batch size is derived from the training data parameters for consistency.
             batch_size = int(max(len(data) // steps, 1))
 
             # Create a TensorFlow Dataset for the input data.
@@ -255,7 +245,6 @@ class Client:
             )
 
             # Reconstruct y_true from the same batched dataset to ensure matching shapes
-            # even if drop_remainder was used (though we set it to False here for full data).
             y_true_list = []
 
             for batch in dataset:
@@ -313,11 +302,9 @@ class Client:
         batch_size = int(max(len(self._threshold_data["x_test"]) // steps, 1))
 
         # Create a TensorFlow Dataset for the test data.
-        # `drop_remainder=True` is used to ensure all batches passed to `predict` have
-        # the same shape, which helps prevent `tf.function` retracing warnings.
         x_test_dataset = tf.data.Dataset.from_tensor_slices(
             tensors=self._threshold_data["x_test"]
-        ).batch(batch_size=batch_size, drop_remainder=True)
+        ).batch(batch_size=batch_size, drop_remainder=False)
 
         # Perform prediction using the batched dataset.
         y_pred = self._threshold.predict(
@@ -326,9 +313,6 @@ class Client:
         )
 
         # Reconstruct the ground truth (y_true) from the same batched dataset.
-        # This is crucial because `drop_remainder=True` means `y_pred` will not
-        # include predictions for any partial last batch, so `y_true` must match
-        # the exact data that `y_pred` was generated from.
         y_true_list = []
 
         for batch in x_test_dataset:
@@ -337,37 +321,9 @@ class Client:
         y_true = np.concatenate(y_true_list, axis=0) # Combine all batches into a single NumPy array
 
         # Calculate the reconstruction error.
-        # As per the project's FLAD specific implementation, the error is negated
-        # to align with an objective of maximizing accuracy, even though autoencoders
-        # traditionally minimize reconstruction error.
         self._threshold_info["accuracy_score"] = np.mean(np.square(y_true - y_pred))
 
         return self._threshold_info["accuracy_score"]
-
-    def _calculate_t_base(self):
-
-        # Create a TensorFlow Dataset for the test data.
-        x = tf.data.Dataset.from_tensor_slices(
-            tensors=self._autoencoder_data["x_test"]
-        ).batch(batch_size=32, drop_remainder=False)
-
-        # Perform prediction using the batched dataset.
-        y_pred = self._autoencoder.predict(
-            x,
-            verbose=config.VERBOSE
-        )
-
-        # Reconstruct the ground truth (y_true) from the same batched dataset.
-        y_true_list = []
-
-        for batch in x:
-            y_true_list.append(batch.numpy())
-
-        y_true = np.concatenate(y_true_list, axis=0)
-
-        reconstruction_errors = np.mean(np.square(y_true - y_pred), axis=(1, 2))
-
-        self._t_base = reconstruction_errors.mean() # + reconstruction_errors.std()
 
     def set_autoencoder_model(self, model: Model):
         """
