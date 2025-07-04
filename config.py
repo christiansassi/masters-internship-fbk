@@ -47,7 +47,7 @@ class FLADAndDAICSHyperparameters:
     MAX_STEPS: int = 1000
     PATIENCE: int = 25
 
-    N_CLIENTS: int = os.cpu_count() - 1 # 13 50 90
+    N_CLIENTS: int = 15 #os.cpu_count() - 1 # 13 50 90
 
     W_ANOMALY: int = 30
 

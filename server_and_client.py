@@ -531,6 +531,8 @@ class Server:
         saves it.
         """
 
+        run = config.WandbConfig.init_run("Autoencoder Model")
+
         # All the clients partecipate in the first round
         selected_clients = self._select_clients()
 
@@ -628,7 +630,9 @@ class Server:
 
         # Save best model
         best_model.save(filepath=config.ModelConfig.autoencoder_model(), overwrite=True)
-    
+        
+        run.finish()
+
     def get_autoencoder_model(self) -> Model:
         """
         Returns the global autoencoder model.
