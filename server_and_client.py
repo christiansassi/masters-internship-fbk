@@ -582,8 +582,8 @@ class Server:
             
             self._autoencoder_average_accuracy_score = self._autoencoder_average_accuracy_score / len(self._clients)
 
-            logging.info(f"Current accuracy score: {utils.dynamic_round(value=self._autoencoder_average_accuracy_score, reference_value=max_accuracy_score)}")
-            logging.info(f"Max accuracy score: {utils.dynamic_round(value=max_accuracy_score, reference_value=self._autoencoder_average_accuracy_score)}")
+            logging.info(f"Current accuracy score: {utils.dynamic_round(value=self._autoencoder_average_accuracy_score, reference_value=max_accuracy_score)} ({self._autoencoder_average_accuracy_score})")
+            logging.info(f"Max accuracy score: {utils.dynamic_round(value=max_accuracy_score, reference_value=self._autoencoder_average_accuracy_score)} ({max_accuracy_score})")
 
             time_per_round = time() - start
 
