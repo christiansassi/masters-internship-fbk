@@ -97,12 +97,9 @@ if __name__ == "__main__":
     if config.RUN_TYPE in [config.RUN_TYPE.ALL, config.RUN_TYPE.AUTOENCODER]:
 
         # Start federated learning
-        run = config.WandbConfig.init_run(name="Autoencoder model")
 
         logging.info(f"Starting federated learning")
         server.federated_learning()
-
-        run.finish()
 
     if config.RUN_TYPE in [config.RUN_TYPE.ALL, config.RUN_TYPE.THRESHOLD]:
 
