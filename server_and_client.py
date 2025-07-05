@@ -379,8 +379,8 @@ class Client:
 
         mkdir(folder)
 
-        original_autoencoder = clone(self._autoencoder)
-        original_threshold = clone(self._threshold)
+        original_autoencoder = clone(self._autoencoder) if self._autoencoder is not None else None
+        original_threshold = clone(self._threshold) if self._threshold is not None else None
 
         # Save class obj without tensorflow models
         self._autoencoder = None
@@ -389,8 +389,11 @@ class Client:
         pickle.dump(self, open(client, "wb+"))
 
         # Save tensorflow models separatedly
-        original_autoencoder.save(autoencoder)
-        original_threshold.save(threshold)
+        if original_autoencoder is not None:
+            original_autoencoder.save(autoencoder)
+        
+        if original_threshold is not None:
+            original_threshold.save(threshold)
 
         # Restore tensorflow models
         self._autoencoder = original_autoencoder
@@ -531,7 +534,7 @@ class Server:
         saves it.
         """
 
-        run = config.WandbConfig.init_run("Autoencoder Model")
+        run = config.WandbConfig.init_run("Autoencoder model")
 
         # All the clients partecipate in the first round
         selected_clients = self._select_clients()
