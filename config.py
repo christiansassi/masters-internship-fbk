@@ -180,7 +180,7 @@ class RunType(Enum):
     AUTOENCODER: int = 1
     THRESHOLD: int = 2
 
-RUN_TYPE = RunType.AUTOENCODER
+RUN_TYPE = RunType.NONE
 
 # Create folders
 if RUN_TYPE in [RunType.ALL, RunType.AUTOENCODER, RunType.THRESHOLD]:

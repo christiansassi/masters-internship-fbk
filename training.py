@@ -80,7 +80,7 @@ if __name__ == "__main__":
 
         # load autoencoder model
         logging.info(f"Loading autoencoder model")
-        autoencoder = load_model(config.ModelConfig.FINAL_AUTOENCODER_MODEL)
+        autoencoder = load_model(r"models\autoencoder\autoencoder-lstm.keras")
 
     # Create a random threshold model
     logging.info(f"Creating threshold model")

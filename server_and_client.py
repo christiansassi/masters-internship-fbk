@@ -14,6 +14,8 @@ from keras.models import Model, clone_model  # type: ignore
 
 import tensorflow as tf
 
+from scipy.stats import skew, kurtosis
+
 import uuid
 from uuid import uuid4
 
@@ -252,8 +254,25 @@ class Client:
 
             y_true = np.concatenate(y_true_list, axis=0)
 
-            # Calculate the squared reconstruction error for each sample.
-            self._threshold_data[key] = np.mean(np.square(y_true - y_pred), axis=(1, 2))
+            # Calculate different metrics related to reconstruction error
+            errors = np.square(y_true - y_pred)
+            errors_flat = errors.reshape(errors.shape[0], -1)
+
+            mean_errors = np.mean(errors_flat, axis=1)
+            var_errors = np.var(errors_flat, axis=1)
+            skew_errors = skew(errors_flat, axis=1)
+            kurt_errors = kurtosis(errors_flat, axis=1)
+
+            mean_per_timestep = np.mean(errors, axis=2)
+
+            def compute_slope(window_errors):
+                x = np.arange(len(window_errors))
+                slope, _ = np.polyfit(x, window_errors, deg=1)
+                return slope
+
+            slope_errors = np.array([compute_slope(e) for e in mean_per_timestep])
+
+            self._threshold_data[key] = np.stack([mean_errors, var_errors, skew_errors, kurt_errors, slope_errors], axis=1)
         
         # Calculate train and validation batch size
         train_batch_size = int(max(len(self._threshold_data["x_train"]) // steps, 1))
