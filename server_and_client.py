@@ -16,6 +16,8 @@ import tensorflow as tf
 
 from scipy.stats import skew, kurtosis
 
+from sklearn.preprocessing import StandardScaler
+
 import uuid
 from uuid import uuid4
 
@@ -110,8 +112,7 @@ class Client:
         # Calculate total samples
         self._samples: int = sum([len(self._autoencoder_data[key]) for key in self._autoencoder_data.keys()])
 
-        # Set t_base to None
-        self._t_base = None
+        self._scaler = StandardScaler()
 
     def __str__(self) -> str:
         return self._id
@@ -228,7 +229,7 @@ class Client:
         epochs = self._threshold_info["epochs"]
 
         # Derive the threshold data from the autoencoder data
-        for key in ["x_train", "x_val", "x_test"]:
+        for index, key in enumerate(["x_train", "x_val", "x_test"]):
 
             data = self._autoencoder_data[key]
 
@@ -272,22 +273,31 @@ class Client:
 
             slope_errors = np.array([compute_slope(e) for e in mean_per_timestep])
 
-            self._threshold_data[key] = np.stack([mean_errors, var_errors, skew_errors, kurt_errors, slope_errors], axis=1)
+            features = np.stack([mean_errors, var_errors, skew_errors, kurt_errors, slope_errors], axis=1)
+
+            self._threshold_data[key] = {}
+            
+            self._threshold_data[key]["original"] = features
+
+            if index == 0:
+                self._threshold_data[key]["normalized"] = self._scaler.fit_transform(features)
+            else:
+                self._threshold_data[key]["normalized"] = self._scaler.transform(features)
         
         # Calculate train and validation batch size
-        train_batch_size = int(max(len(self._threshold_data["x_train"]) // steps, 1))
-        val_batch_size = int(max(len(self._threshold_data["x_val"]) // steps, 1))
+        train_batch_size = int(max(len(self._threshold_data["x_train"]["normalized"]) // steps, 1))
+        val_batch_size = int(max(len(self._threshold_data["x_val"]["normalized"]) // steps, 1))
 
         # Calculate steps
-        steps_per_epoch = len(self._threshold_data["x_train"]) // train_batch_size
-        validation_steps = len(self._threshold_data["x_val"]) // val_batch_size
+        steps_per_epoch = len(self._threshold_data["x_train"]["normalized"]) // train_batch_size
+        validation_steps = len(self._threshold_data["x_val"]["normalized"]) // val_batch_size
 
         x_train = tf.data.Dataset.from_tensor_slices(
-            (self._threshold_data["x_train"], self._threshold_data["x_train"])
+            (self._threshold_data["x_train"]["normalized"], self._threshold_data["x_train"]["original"][:, 0])
         ).batch(batch_size=train_batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE)
 
         x_val = tf.data.Dataset.from_tensor_slices(
-            (self._threshold_data["x_val"], self._threshold_data["x_val"])
+            (self._threshold_data["x_val"]["normalized"], self._threshold_data["x_val"]["original"][:, 0])
         ).batch(batch_size=val_batch_size, drop_remainder=True).cache().repeat().prefetch(buffer_size=tf.data.AUTOTUNE)
 
         # Train the threshold
@@ -302,47 +312,6 @@ class Client:
 
             verbose=config.VERBOSE
         )
-
-    def _threshold_evaluate(self) -> float:
-        """
-        Evaluates the given threshold model using the current client's data.
-
-        :param model: The Keras threshold model to be evaluated.
-        :type model: `tf.keras.Model`
-
-        :return: The accuracy score.
-        :rtype: `float`
-        """
-
-        # Extract steps
-        steps = self._threshold_info["steps"]
-
-        # Calculate batch size
-        batch_size = int(max(len(self._threshold_data["x_test"]) // steps, 1))
-
-        # Create a TensorFlow Dataset for the test data.
-        x_test_dataset = tf.data.Dataset.from_tensor_slices(
-            tensors=self._threshold_data["x_test"]
-        ).batch(batch_size=batch_size, drop_remainder=False)
-
-        # Perform prediction using the batched dataset.
-        y_pred = self._threshold.predict(
-            x_test_dataset,
-            verbose=config.VERBOSE
-        )
-
-        # Reconstruct the ground truth (y_true) from the same batched dataset.
-        y_true_list = []
-
-        for batch in x_test_dataset:
-            y_true_list.append(batch.numpy()) # Convert TensorFlow tensor batch back to NumPy array
-
-        y_true = np.concatenate(y_true_list, axis=0) # Combine all batches into a single NumPy array
-
-        # Calculate the reconstruction error.
-        self._threshold_info["accuracy_score"] = np.mean(np.square(y_true - y_pred))
-
-        return self._threshold_info["accuracy_score"]
 
     def set_autoencoder_model(self, model: Model):
         """
