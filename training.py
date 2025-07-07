@@ -70,7 +70,7 @@ if __name__ == "__main__":
     hf = h5py.File(name=config.DatasetConfig.OUTPUT_NORMAL)
     x = np.array(hf["x"])
 
-    if config.RUN_TYPE in [config.RUN_TYPE.ALL, config.RUN_TYPE.AUTOENCODER]:
+    if config.RUN_TYPE in [config.RunType.ALL, config.RunType.AUTOENCODER]:
 
         # Create a random autoencoder model
         logging.info(f"Creating autoencoder model")
@@ -94,14 +94,14 @@ if __name__ == "__main__":
     logging.info(f"Initializing server")
     server = Server(autoencoder=autoencoder, clients=clients)
 
-    if config.RUN_TYPE in [config.RUN_TYPE.ALL, config.RUN_TYPE.AUTOENCODER]:
+    if config.RUN_TYPE in [config.RunType.ALL, config.RunType.AUTOENCODER]:
 
         # Start federated learning
 
         logging.info(f"Starting federated learning")
         server.federated_learning()
 
-    if config.RUN_TYPE in [config.RUN_TYPE.ALL, config.RUN_TYPE.THRESHOLD]:
+    if config.RUN_TYPE in [config.RunType.ALL, config.RunType.THRESHOLD]:
 
         # Train the threshold model of each client
         for index, client in enumerate(clients):
@@ -111,8 +111,8 @@ if __name__ == "__main__":
             client._threshold_train(model=threshold)
 
             # Evaluate model
-            print(f"{utils.log_timestamp_status()}[{index + 1} / {len(clients)}] Evaluating {str(client)}", end="\r")
-            accuracy = client._threshold_evaluate()
+            # print(f"{utils.log_timestamp_status()}[{index + 1} / {len(clients)}] Evaluating {str(client)}", end="\r")
+            # accuracy = client._threshold_evaluate()
 
             # Save model
             client.get_threshold_model().save(filepath=config.ModelConfig.threshold_model(client_id=str(client)), overwrite=True)
@@ -120,11 +120,13 @@ if __name__ == "__main__":
         print(" "*100, end="\r")
         print(f"{utils.log_timestamp_status()} Trained and Evaluated {len(clients)} client(s)")
     
-    # Save the clients
-    for index, client in enumerate(clients):
+    if config.RUN_TYPE != config.RunType.NONE:
 
-        print(f"{utils.log_timestamp_status()}[{index + 1} / {len(clients)}] Saving {str(client)}", end="\r")
-        client.export()
+        # Save the clients
+        for index, client in enumerate(clients):
 
-    print(" "*100, end="\r")
-    print(f"{utils.log_timestamp_status()} Saved {len(clients)} client(s)")
+            print(f"{utils.log_timestamp_status()}[{index + 1} / {len(clients)}] Saving {str(client)}", end="\r")
+            client.export()
+
+        print(" "*100, end="\r")
+        print(f"{utils.log_timestamp_status()} Saved {len(clients)} client(s)")
