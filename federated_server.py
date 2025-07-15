@@ -209,7 +209,7 @@ class Server:
             )
 
             for index, client in enumerate(self.clients):
-                logging.info(f"Evaluating {index} / {len(selected_clients)}")
+                logging.info(f"Evaluating {index} / {len(self.clients)}")
                 score = getattr(client, f"eval_{label}_network")(getattr(self, f"{label}_networks"))
             
                 setattr(
@@ -224,7 +224,7 @@ class Server:
                     getattr(self, f"{label}_score") / len(self.clients)
                 )
             
-            logging.info(f"Evaluated {len(selected_clients)} clients")
+            logging.info(f"Evaluated {len(self.clients)} clients")
 
             # Check for improvements
             logging.info(f"Current score: {getattr(self, f'{label}_score')}")
