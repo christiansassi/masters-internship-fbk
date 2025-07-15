@@ -274,7 +274,7 @@ class Server:
                 break
             
             # Select new clients
-            selected_clients = self.select_clients()
+            selected_clients = self.select_clients(label=label)
 
         # Update global models
         setattr(
