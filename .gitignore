@@ -5,8 +5,8 @@
 # Directories
 **/clients
 **/datasets
+**/models/tmp
 **/keys
-**/private_scripts
 **/wandb
 
 # Extensions
