@@ -244,7 +244,7 @@ class Server:
                 root = eval(f"{label.upper()}_NETWORKS_TMP")
                 basename = eval(f"{label.upper()}_NETWORKS_BASENAME")
 
-                makedirs(root)
+                makedirs(root, exist_ok=True)
 
                 # Delete everything
                 for index, network in enumerate(networks):
