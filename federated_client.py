@@ -179,6 +179,14 @@ class Client:
             loss=LOSS
         )
 
+    def get_wide_deep_network(self) -> list[WideDeepNetworkDAICS]:
+
+        return clone_wide_deep_networks(
+            wide_deep_networks=self.threshold_networks,
+            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
+            loss=LOSS
+        )
+
     def train_threshold_network(self, threshold_networks: list[ThresholdNetworkDAICS], clear_cache: bool = False):
 
         self.threshold_networks = clone_threshold_networks(
@@ -320,6 +328,14 @@ class Client:
 
         self.threshold_networks = clone_threshold_networks(
             threshold_networks=threshold_networks,
+            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
+            loss=LOSS
+        )
+    
+    def get_threshold_networks(self) -> list[ThresholdNetworkDAICS]:
+
+        return clone_threshold_networks(
+            threshold_networks=self.threshold_networks,
             optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
             loss=LOSS
         )
