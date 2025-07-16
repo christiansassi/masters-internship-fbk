@@ -155,8 +155,8 @@ def load_wide_deep_networks() -> list[WideDeepNetworkDAICS]:
 
     wide_deep_networks = []
 
-    for wide_deep_model in listdir(WIDE_DEEP_NETWORKS):
-        model = load_model(join(WIDE_DEEP_NETWORKS, wide_deep_model), custom_objects={"WideDeepNetworkDAICS": WideDeepNetworkDAICS})
+    for wide_deep_network in listdir(WIDE_DEEP_NETWORKS):
+        model = load_model(join(WIDE_DEEP_NETWORKS, wide_deep_network), custom_objects={"WideDeepNetworkDAICS": WideDeepNetworkDAICS})
         wide_deep_networks.append(model)
     
     return wide_deep_networks
@@ -194,8 +194,8 @@ def load_threshold_networks() -> list[ThresholdNetworkDAICS]:
 
     threshold_networks = []
 
-    for threshold_model in listdir(THRESHOLD_NETWORKS):
-        model = load_model(join(THRESHOLD_NETWORKS, threshold_model), custom_objects={"ThresholdNetworkDAICS": ThresholdNetworkDAICS})
+    for threshold_network in listdir(THRESHOLD_NETWORKS):
+        model = load_model(join(THRESHOLD_NETWORKS, threshold_network), custom_objects={"ThresholdNetworkDAICS": ThresholdNetworkDAICS})
         threshold_networks.append(model)
     
     return threshold_networks

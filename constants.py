@@ -50,6 +50,8 @@ MOMENTUM: float = 0.9
 
 LOSS: str = "mse"
 
+MED_FILTER_LAG: int = 51
+
 #? === Constants from FLAD ===
 
 MIN_EPOCHS: int = 1
