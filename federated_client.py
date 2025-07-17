@@ -461,7 +461,6 @@ class Client:
             "ground_truth": all_labels
         }
 
-
 def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], threshold_networks: list[ThresholdNetworkDAICS] = []) -> list[Client]:
 
     hf = h5py.File(name=OUTPUT_FILE, mode="r")
@@ -478,13 +477,15 @@ def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], th
 
     df_normal_test_input_indices = np.array_split(hf["df_normal_test_input_indices"][:], N_CLIENTS)
     df_normal_test_output_indices = np.array_split(hf["df_normal_test_output_indices"][:], N_CLIENTS)
-    
-    df_attack = hf["df_attack"][:]
 
+    df_attack = hf["df_attack"][:]
     df_attack_input_indices = hf["df_attack_input_indices"][:]
     df_attack_output_indices = hf["df_attack_output_indices"][:]
 
     hf.close()
+
+    truncate_windows = lambda x, y: (x[: (len(x) // BATCH_SIZE) * BATCH_SIZE],
+                                     y[: (len(y) // BATCH_SIZE) * BATCH_SIZE])
 
     clients = []
 
@@ -524,6 +525,12 @@ def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], th
         test_in_local = np.vectorize(test_map.get)(test_input_indices)
         test_out_local = np.vectorize(test_map.get)(test_output_indices)
 
+        # Truncate to batch-aligned window counts
+        train_in_local, train_out_local = truncate_windows(train_in_local, train_out_local)
+        val_in_local, val_out_local = truncate_windows(val_in_local, val_out_local)
+        test_in_local, test_out_local = truncate_windows(test_in_local, test_out_local)
+        df_attack_input_indices, df_attack_output_indices = truncate_windows(df_attack_input_indices, df_attack_output_indices)
+
         # Create client object
         client = Client(
             df_train=df_train,
@@ -548,5 +555,5 @@ def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], th
         )
 
         clients.append(client)
-    
+
     return clients
