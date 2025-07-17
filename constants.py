@@ -50,7 +50,14 @@ MOMENTUM: float = 0.9
 
 LOSS: str = "mse"
 
-MED_FILTER_LAG: int = 51
+W_ANOMALY: int = 30
+
+# According to : https://www.researchgate.net/publication/305809559
+# Some of the attacks have a stronger effect on the dynamics of system and causing more time
+# for the system to stabilize (after the attack). Simpler attacks, such as those that effect flow rates,
+# require less time to stabilize. Also, some attacks do not take effect immediately (attack impact is seen after the attack's end).
+# Based on that, attack impact is considered as part of the attack, and we avoid human intervention on the period just after the attack
+W_GRACE: int = 0
 
 #? === Constants from FLAD ===
 
