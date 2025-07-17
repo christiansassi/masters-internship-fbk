@@ -66,11 +66,22 @@ def split_train_val_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, 
 
     return df_train, df_val, df_test
 
-def prepare_sliding_windows(df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataFrame) -> tuple:
+def prepare_sliding_windows(df_train: pd.DataFrame = None, df_val: pd.DataFrame = None, df_test: pd.DataFrame = None) -> tuple:
+
+    windows = []
+
+    if df_train is not None:
+        windows.append((df_train, TRAIN_STEP))
+    
+    if df_val is not None:
+        windows.append((df_val, VAL_STEP))
+    
+    if df_test is not None:
+        windows.append((df_test, TEST_STEP))
 
     results = []
 
-    for df, step in [(df_train, TRAIN_STEP), (df_val, VAL_STEP), (df_test, TEST_STEP)]:
+    for df, step in windows:
 
         # Input
 
@@ -126,14 +137,17 @@ if __name__ == "__main__":
         df_normal_test_output_indices
     ) = prepare_sliding_windows(df_train=df_normal_train, df_val=df_normal_val, df_test=df_normal_test)
 
+    (
+        df_attack_input_indices,
+        df_attack_output_indices
+    ) = prepare_sliding_windows(df_test=df_attack)
+
     # Save everything
     hf = h5py.File(name=OUTPUT_FILE, mode="w")
 
     hf.create_dataset("df_normal_train", data=df_normal_train.values)
     hf.create_dataset("df_normal_val", data=df_normal_val.values)
     hf.create_dataset("df_normal_test", data=df_normal_test.values)
-
-    hf.create_dataset("df_attack", data=df_attack.values)
 
     hf.create_dataset("df_normal_train_input_indices", data=df_normal_train_input_indices)
     hf.create_dataset("df_normal_train_output_indices", data=df_normal_train_output_indices)
@@ -143,5 +157,10 @@ if __name__ == "__main__":
 
     hf.create_dataset("df_normal_test_input_indices", data=df_normal_test_input_indices)
     hf.create_dataset("df_normal_test_output_indices", data=df_normal_test_output_indices)
+
+    hf.create_dataset("df_attack", data=df_attack.values)
+
+    hf.create_dataset("df_attack_input_indices", data=df_attack_input_indices)
+    hf.create_dataset("df_attack_output_indices", data=df_attack_output_indices)
 
     hf.close()
