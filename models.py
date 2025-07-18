@@ -1,6 +1,7 @@
 from constants import (
     WIDE_DEEP_NETWORKS,
-    THRESHOLD_NETWORKS
+    THRESHOLD_NETWORKS,
+    WINDOW_PAST
 )
 
 import config
@@ -172,14 +173,14 @@ def clone_threshold_networks(
     for original_model in threshold_networks:
 
         if not original_model.built:
-            dummy_input = tf.zeros((1, 60, 1))
+            dummy_input = tf.zeros((1, WINDOW_PAST, 1))
             _ = original_model(dummy_input)
 
         original_weights = original_model.get_weights()
 
         cloned_model = ThresholdNetworkDAICS()
 
-        dummy_input = tf.zeros((1, 60, 1))
+        dummy_input = tf.zeros((1, WINDOW_PAST, 1))
         _ = cloned_model(dummy_input)
 
         cloned_model.set_weights(original_weights)
