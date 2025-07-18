@@ -16,7 +16,7 @@ if __name__ == "__main__":
     utils.clear_console() 
 
     # Load wide deep networks
-    wide_deep_networks = [] # load_wide_deep_networks()
+    wide_deep_networks = load_wide_deep_networks()
 
     # Load threshold networks
     threshold_networks = [] # load_threshold_networks()
@@ -38,9 +38,9 @@ if __name__ == "__main__":
         # Federated learning (wide deep networks)
         server.federated_learning(label=WIDE_DEEP_NETWORKS_LABEL)
 
-    # if not len(threshold_networks):
-    #     # Federated learning (threshold networks)
-    #     server.federated_learning(label=THRESHOLD_NETWORKS_LABEL)
+    if not len(threshold_networks):
+        # Federated learning (threshold networks)
+        server.federated_learning(label=THRESHOLD_NETWORKS_LABEL)
     
     # # # Simulate deploy
     # for client in clients:

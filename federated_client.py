@@ -247,11 +247,8 @@ class Client:
                     input_windows = input_windows[:(len(input_windows) // BATCH_SIZE) * BATCH_SIZE]
                     output_windows = output_windows[:len(input_windows)]
 
-                    x = error_series[input_windows]
-                    y = error_series[output_windows]
-
-                    x = x[:, :, None]
-                    y = y[:, :, None]
+                    x = error_series[input_windows][:, :, None]
+                    y = np.max(error_series[output_windows], axis=1, keepdims=True)[:, None] 
 
                     chunk.append((x, y))
                 
