@@ -34,15 +34,25 @@ def clean_dataset(src: str) -> pd.DataFrame:
     # Clear column names
     df.columns = df.columns.str.strip()
 
+    # Fix typos
+    df["Normal/Attack"] = df["Normal/Attack"].replace({
+        "A ttack": "Attack"
+    })
+
     # Keep only sensors and actuators
-    df = df[ACTUATORS_SENSORS].astype(float)
+    df[ACTUATORS_SENSORS] = df[ACTUATORS_SENSORS].astype(float)
+
+    df["Normal/Attack"] = df["Normal/Attack"].map({"Normal": 0, "Attack": 1})
+    df["Normal/Attack"] = df["Normal/Attack"].astype(int)
+
+    df = df[ACTUATORS_SENSORS + ["Normal/Attack"]]
 
     return df
 
 def normalize_datasets(*datasets: tuple[pd.DataFrame]) -> tuple[pd.DataFrame]:
 
     # Vertically stack all the data
-    full_data = np.vstack([dataset.values for dataset in datasets])
+    full_data = np.vstack([dataset[ACTUATORS_SENSORS].values for dataset in datasets])
 
     # Get min and max value
     min_v = np.minimum(full_data.min(axis=0), 0)
@@ -52,7 +62,13 @@ def normalize_datasets(*datasets: tuple[pd.DataFrame]) -> tuple[pd.DataFrame]:
     normalize = lambda x: np.clip((x - min_v) / (max_v - min_v), 0, 1)
 
     return (
-        pd.DataFrame(data=normalize(dataset.values), columns=ACTUATORS_SENSORS)
+        pd.DataFrame(
+            data=np.hstack([
+                normalize(dataset[ACTUATORS_SENSORS].values),
+                dataset[["Normal/Attack"]].values
+            ]),
+            columns=ACTUATORS_SENSORS + ["Normal/Attack"]
+        )
         for dataset in datasets
     )
 
