@@ -173,15 +173,9 @@ class Client:
     
     def eval_wide_deep_network(self, wide_deep_networks: list[WideDeepNetworkDAICS]) -> float:
 
-        self.wide_deep_networks = clone_wide_deep_networks(
-            wide_deep_networks=wide_deep_networks,
-            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-            loss=LOSS
-        )
-
         scores = []
 
-        for index, model in enumerate(self.wide_deep_networks):
+        for index, model in enumerate(wide_deep_networks):
 
             score = model.evaluate(
                 x=self.df_test[self.test_input_indices],
