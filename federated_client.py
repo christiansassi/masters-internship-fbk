@@ -248,7 +248,7 @@ class Client:
                     output_windows = output_windows[:len(input_windows)]
 
                     x = error_series[input_windows][:, :, None]
-                    y = np.max(error_series[output_windows], axis=1, keepdims=True)[:, None] 
+                    y = np.max(error_series[output_windows], axis=1, keepdims=True)
 
                     chunk.append((x, y))
                 
@@ -278,12 +278,6 @@ class Client:
     
     def eval_threshold_network(self, threshold_networks: list[ThresholdNetworkDAICS], clear_cache: bool = False) -> float:
 
-        self.threshold_networks = clone_threshold_networks(
-            threshold_networks=threshold_networks,
-            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-            loss=LOSS
-        )
-
         if clear_cache or not len(self.threshold_networks_eval_data):
 
             self.threshold_networks_eval_data = []
@@ -312,11 +306,8 @@ class Client:
                 input_windows = input_windows[:(len(input_windows) // BATCH_SIZE) * BATCH_SIZE]
                 output_windows = output_windows[:len(input_windows)]
 
-                x = error_series[input_windows]
-                y = error_series[output_windows]
-
-                x = x[:, :, None]
-                y = y[:, :, None]
+                x = error_series[input_windows][:, :, None]
+                y = np.max(error_series[output_windows], axis=1, keepdims=True) 
 
                 self.threshold_networks_eval_data.append((x, y))
 

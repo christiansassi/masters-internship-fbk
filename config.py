@@ -19,7 +19,7 @@ dotenv.load_dotenv()
 from types import SimpleNamespace
 
 VERBOSE: int = 1
-GPU: bool = False
+GPU: bool = True
 WANDB: bool = True
 
 if GPU:
