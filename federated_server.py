@@ -53,7 +53,8 @@ class Server:
                     window_size_out=WINDOW_PRESENT,
                     n_devices_in=FEATURES_IN,
                     n_devices_out=len(sensors_indices),
-                    kernel_size=KERNEL_SIZE
+                    kernel_size=KERNEL_SIZE,
+                    sensor_groups=SENSOR_GROUPS_INDICES
                 )
 
                 model.compile(

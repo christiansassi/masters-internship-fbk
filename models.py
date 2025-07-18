@@ -17,11 +17,11 @@ class FeatureExtractor(tf.keras.Model):
         super().__init__()
         proj_dim = window_size_in * 3 if window_size_in >= n_devices_in else n_devices_in * 3
 
-        self.proj = layers.Dense(proj_dim)
+        self.time_proj = layers.TimeDistributed(layers.Dense(proj_dim))
         self.conv1 = layers.Conv1D(64, kernel_size, activation=tf.nn.leaky_relu)
-        self.pool1 = layers.MaxPooling1D(2)
+        self.pool1 = layers.MaxPooling1D(pool_size=2)
         self.conv2 = layers.Conv1D(128, kernel_size, activation=tf.nn.leaky_relu)
-        self.pool2 = layers.MaxPooling1D(2)
+        self.pool2 = layers.MaxPooling1D(pool_size=2)
         self.conv_out = layers.Dense(window_size_out)
 
         self.wide_fc = layers.Dense(window_size_out)
@@ -34,21 +34,20 @@ class FeatureExtractor(tf.keras.Model):
         wide = tf.nn.leaky_relu(wide)
         wide = self.dropout(wide, training=training)
 
-        x_proj = self.proj(x)
-        x_conv = self.pool1(self.conv1(x_proj))
-        x_conv = self.pool2(self.conv2(x_conv))
+        x_proj = self.time_proj(x)
+        x_conv = self.conv1(x_proj)
+        x_conv = self.pool1(x_conv)
+        x_conv = self.conv2(x_conv)
+        x_conv = self.pool2(x_conv)
         x_conv = self.dropout(x_conv, training=training)
         x_conv = self.conv_out(x_conv)
 
-        x_conv = tf.expand_dims(x_conv, -1)
-        x_conv = tf.image.resize(x_conv, [tf.shape(wide)[1], self.window_size_out])
-        x_conv = tf.squeeze(x_conv, -1)
-
+        time_dim = tf.shape(wide)[1]
+        x_conv = tf.image.resize(x_conv, [time_dim, self.window_size_out])
         merged = tf.concat([x_conv, wide], axis=-1)
         return self.combine_fc(merged)
 
 class SensorPredictor(tf.keras.Model):
-
     def __init__(self, n_devices_out):
         super().__init__()
         self.out_h1 = layers.Dense(int(n_devices_out * 2.25), activation=tf.nn.leaky_relu)
@@ -59,36 +58,33 @@ class SensorPredictor(tf.keras.Model):
     def call(self, x, training=False):
         x = self.dropout(self.out_h1(x), training=training)
         x = self.dropout(self.out_h2(x), training=training)
-        return self.out(x)
+        return tf.nn.relu(self.out(x))
 
 class WideDeepNetworkDAICS(tf.keras.Model):
-    def __init__(self, window_size_in, window_size_out, n_devices_in, n_devices_out, kernel_size):
+    def __init__(self, window_size_in, window_size_out, n_devices_in, kernel_size, sensor_groups):
         super().__init__()
-
         self.window_size_in = window_size_in
         self.window_size_out = window_size_out
         self.n_devices_in = n_devices_in
-        self.n_devices_out = n_devices_out
         self.kernel_size = kernel_size
-        
+        self.sensor_groups = sensor_groups
+
         self.feature_extractor = FeatureExtractor(window_size_in, window_size_out, n_devices_in, kernel_size)
-        self.sensor_predictor = SensorPredictor(n_devices_out)
-        self.window_size_out = window_size_out
+        self.predictors = [SensorPredictor(len(group)) for group in sensor_groups]
 
     def call(self, x, training=False):
-        x = self.feature_extractor(x, training=training)
-        x = self.sensor_predictor(x, training=training)
-        return x[:, -self.window_size_out:, :]
+        features = self.feature_extractor(x, training=training)
+        return [predictor(features, training=training)[:, -self.window_size_out:, :] for predictor in self.predictors]
 
     def get_config(self):
         return {
             "window_size_in": self.window_size_in,
             "window_size_out": self.window_size_out,
             "n_devices_in": self.n_devices_in,
-            "n_devices_out": self.n_devices_out,
             "kernel_size": self.kernel_size,
+            "sensor_groups": self.sensor_groups,
         }
-    
+
     @classmethod
     def from_config(cls, config):
         return cls(**config)
@@ -120,12 +116,11 @@ def clone_wide_deep_networks(
     cloned_models = []
 
     for original_model in wide_deep_networks:
-        
         window_size_in = original_model.window_size_in
         window_size_out = original_model.window_size_out
         n_devices_in = original_model.n_devices_in
-        n_devices_out = original_model.n_devices_out
         kernel_size = original_model.kernel_size
+        sensor_groups = original_model.sensor_groups
 
         if not original_model.built:
             dummy_input = tf.zeros((1, window_size_in, n_devices_in))
@@ -137,8 +132,8 @@ def clone_wide_deep_networks(
             window_size_in=window_size_in,
             window_size_out=window_size_out,
             n_devices_in=n_devices_in,
-            n_devices_out=n_devices_out,
-            kernel_size=kernel_size
+            kernel_size=kernel_size,
+            sensor_groups=sensor_groups
         )
 
         dummy_input = tf.zeros((1, window_size_in, n_devices_in))
@@ -150,6 +145,7 @@ def clone_wide_deep_networks(
         cloned_models.append(cloned_model)
 
     return cloned_models
+
 
 def load_wide_deep_networks() -> list[WideDeepNetworkDAICS]:
 

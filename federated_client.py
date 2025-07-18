@@ -12,7 +12,8 @@ from constants import (
     BATCH_SIZE,
     MAX_EPOCHS,
     W_ANOMALY,
-    W_GRACE
+    W_GRACE,
+    SENSORS_GROUPS
 )
 
 import config
@@ -99,7 +100,8 @@ class Client:
                     window_size_out=WINDOW_PRESENT,
                     n_devices_in=FEATURES_IN,
                     n_devices_out=len(sensors_indices),
-                    kernel_size=KERNEL_SIZE
+                    kernel_size=KERNEL_SIZE,
+                    sensor_groups=SENSOR_GROUPS_INDICES
                 )
 
                 model.compile(
@@ -136,6 +138,11 @@ class Client:
             )
 
         self.all_labels = self.df_real[:, -1].astype(int)
+
+        self.df_train = self.df_train[:, :-1]
+        self.df_val = self.df_val[:, :-1]
+        self.df_test = self.df_test[:, :-1]
+        self.df_real = self.df_real[:, :-1]
 
     def train_wide_deep_network(self, wide_deep_networks: list[WideDeepNetworkDAICS]):
         
@@ -359,107 +366,6 @@ class Client:
             optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
             loss=LOSS
         )
-    
-    def test_network(self):
-
-        all_preds = np.zeros(len(self.df_real))
-        grace_timer = 0
-
-        x = self.df_real[self.real_input_indices]
-
-        for index, (wide_deep_network, threshold_network) in enumerate(zip(self.wide_deep_networks, self.threshold_networks)):
-
-            # Predict sensor values
-            preds = wide_deep_network.predict(
-                x=x, 
-                
-                batch_size=BATCH_SIZE, 
-                
-                verbose=config.VERBOSE
-            )
-
-            targets = self.df_real[self.real_output_indices][:, :, SENSOR_GROUPS_INDICES[index]]
-            errors = np.mean((preds - targets) ** 2, axis=-1)
-            error_series = np.zeros(len(self.df_real))
-
-            for indices, err_seq in zip(self.real_output_indices, errors):
-                error_series[indices] = err_seq
-
-            input_windows = np.flip((np.arange(WINDOW_PAST - 1, len(error_series) - WINDOW_PRESENT + 1)[:, None] - np.arange(WINDOW_PAST)), axis=1)
-            output_windows = (np.arange(WINDOW_PAST, len(error_series) - WINDOW_PRESENT + 1)[:, None] + np.arange(WINDOW_PRESENT))
-
-            input_windows = input_windows[:(len(input_windows) // BATCH_SIZE) * BATCH_SIZE]
-            output_windows = output_windows[:len(input_windows)]
-
-            x_thresh = error_series[input_windows][:, :, None]
-
-            thresholds = threshold_network.predict(
-                x=x_thresh, 
-                
-                batch_size=BATCH_SIZE, 
-                
-                verbose=config.VERBOSE
-            )
-
-            predicted_labels = np.zeros(len(self.df_real))
-            benign_x, benign_y = [], []
-
-            for idx, (error_indices, th) in enumerate(zip(output_windows, thresholds)):
-
-                if grace_timer > 0:
-                    grace_timer -= 1
-                    continue
-
-                error_values = error_series[error_indices]
-                is_anomaly = np.any(error_values > th)
-
-                if is_anomaly:
-                    predicted_labels[error_indices] = 1
-                    grace_timer = W_ANOMALY + W_GRACE
-
-                    # === Simulated feedback ===
-                    true_label = np.any(self.all_labels[error_indices] == 1)
-
-                    if not true_label:
-                        # False positive, use for TTNN retraining
-                        benign_x.append(x_thresh[idx])
-                        benign_y.append(error_values[:, None])
-                else:
-                    benign_x.append(x_thresh[idx])
-                    benign_y.append(error_values[:, None])
-
-            # Update overall predictions
-            all_preds = np.maximum(all_preds, predicted_labels)
-
-            # Retrain threshold model on new benign data if available
-            if benign_x:
-                x_b = np.stack(benign_x)
-                y_b = np.stack(benign_y)
-
-                threshold_network.fit(
-                    x=x_b, 
-                    y=y_b, 
-                    
-                    batch_size=BATCH_SIZE, 
-                    epochs=MAX_EPOCHS, 
-                    
-                    verbose=config.VERBOSE
-                )
-
-        all_preds = all_preds.astype(int)
-        all_labels = self.all_labels.astype(int)
-
-        precision = precision_score(all_labels, all_preds, zero_division=0)
-        recall = recall_score(all_labels, all_preds, zero_division=0)
-        f1 = f1_score(all_labels, all_preds, zero_division=0)
-
-        return {
-            "precision": precision,
-            "recall": recall,
-            "f1_score": f1,
-            "predictions": all_preds,
-            "ground_truth": all_labels
-        }
 
 def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], threshold_networks: list[ThresholdNetworkDAICS] = []) -> list[Client]:
 
