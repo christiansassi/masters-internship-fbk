@@ -100,8 +100,7 @@ class Client:
                     window_size_out=WINDOW_PRESENT,
                     n_devices_in=FEATURES_IN,
                     n_devices_out=len(sensors_indices),
-                    kernel_size=KERNEL_SIZE,
-                    sensor_groups=SENSOR_GROUPS_INDICES
+                    kernel_size=KERNEL_SIZE
                 )
 
                 model.compile(
@@ -366,7 +365,7 @@ class Client:
             optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
             loss=LOSS
         )
-
+    
 def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], threshold_networks: list[ThresholdNetworkDAICS] = []) -> list[Client]:
 
     hf = h5py.File(name=OUTPUT_FILE, mode="r")
