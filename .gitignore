@@ -5,9 +5,16 @@
 # Directories
 **/clients
 **/datasets
-**/models/tmp
 **/keys
 **/wandb
+
+models/*
+
+!models/threshold_networks/
+!models/wide_deep_networks/
+
+!models/threshold_networks/*
+!models/wide_deep_networks/*
 
 # Extensions
 **.env
