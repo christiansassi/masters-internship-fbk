@@ -25,6 +25,8 @@ from models import (
     clone_threshold_networks
 )
 
+from generators import SlidingWindowGenerator
+
 import h5py
 import numpy as np
 from collections import deque
@@ -142,6 +144,39 @@ class Client:
         self.df_test = self.df_test[:, :-1]
         self.df_real = self.df_real[:, :-1]
 
+        self.wide_deep_fit_data = []
+
+        for index in range(len(SENSOR_GROUPS_INDICES)):
+            x = SlidingWindowGenerator(
+                data=self.df_train,
+                input_indices=self.train_input_indices,
+                output_indices=self.train_output_indices,
+                sensor_indices=SENSOR_GROUPS_INDICES[index],
+                batch_size=BATCH_SIZE
+            )
+
+            validation_data = SlidingWindowGenerator(
+                data=self.df_val,
+                input_indices=self.val_input_indices,
+                output_indices=self.val_output_indices,
+                sensor_indices=SENSOR_GROUPS_INDICES[index],
+                batch_size=BATCH_SIZE
+            )
+
+            self.wide_deep_fit_data.append((x, validation_data))
+
+        self.wide_deep_eval_data = []
+
+        for index in range(len(SENSOR_GROUPS_INDICES)):
+
+            self.wide_deep_eval_data.append(SlidingWindowGenerator(
+                data=self.df_test,
+                input_indices=self.test_input_indices,
+                output_indices=self.test_output_indices,
+                sensor_indices=SENSOR_GROUPS_INDICES[index],
+                batch_size=BATCH_SIZE
+            ))
+
     def train_wide_deep_network(self, wide_deep_networks: list[WideDeepNetworkDAICS]):
         
         self.wide_deep_networks = clone_wide_deep_networks(
@@ -151,15 +186,13 @@ class Client:
         )
 
         for index, model in enumerate(self.wide_deep_networks):
+            
+            x, validation_data = self.wide_deep_fit_data[index]
 
             model.fit(
-                x=self.df_train[self.train_input_indices],
-                y=self.df_train[self.train_output_indices][:, :, SENSOR_GROUPS_INDICES[index]],
+                x=x,
 
-                validation_data=(
-                    self.df_val[self.val_input_indices],
-                    self.df_val[self.val_output_indices][:, :, SENSOR_GROUPS_INDICES[index]]
-                ),
+                validation_data=validation_data,
 
                 batch_size=BATCH_SIZE,
                 
@@ -175,9 +208,10 @@ class Client:
 
         for index, model in enumerate(wide_deep_networks):
 
+            x = self.wide_deep_eval_data[index]
+
             score = model.evaluate(
-                x=self.df_test[self.test_input_indices],
-                y=self.df_test[self.test_output_indices][:, :, SENSOR_GROUPS_INDICES[index]],
+                x=x,
 
                 batch_size=BATCH_SIZE,
 

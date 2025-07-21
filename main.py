@@ -38,9 +38,9 @@ if __name__ == "__main__":
         # Federated learning (wide deep networks)
         server.federated_learning(label=WIDE_DEEP_NETWORKS_LABEL)
 
-    if not len(threshold_networks):
-        # Federated learning (threshold networks)
-        server.federated_learning(label=THRESHOLD_NETWORKS_LABEL)
+    # if not len(threshold_networks):
+    #     # Federated learning (threshold networks)
+    #     server.federated_learning(label=THRESHOLD_NETWORKS_LABEL)
     
     # Simulate deploy
     # for client in clients:
