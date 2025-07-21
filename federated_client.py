@@ -25,10 +25,9 @@ from models import (
     clone_threshold_networks
 )
 
-from sklearn.metrics import precision_score, recall_score, f1_score
-
 import h5py
 import numpy as np
+from collections import deque
 
 from uuid import uuid4
 
@@ -216,15 +215,14 @@ class Client:
         )
 
         if clear_cache or not len(self.threshold_networks_fit_data):
-            
+
             self.threshold_networks_fit_data = []
 
             for index, wide_deep_network in enumerate(self.wide_deep_networks):
-                
+
                 chunk = []
 
                 for label in ["train", "val"]:
-
                     predicted = wide_deep_network.predict(
                         x=getattr(self, f"df_{label}")[getattr(self, f"{label}_input_indices")],
 
@@ -236,10 +234,18 @@ class Client:
                     ground_truth = getattr(self, f"df_{label}")[getattr(self, f"{label}_output_indices")][:, :, SENSOR_GROUPS_INDICES[index]]
 
                     errors = np.mean((predicted - ground_truth) ** 2, axis=-1)
+
                     error_series = np.zeros(len(getattr(self, f"df_{label}")))
+                    error_sums = np.zeros_like(error_series)
+                    error_counts = np.zeros_like(error_series)
 
                     for indices, error in zip(getattr(self, f"{label}_output_indices"), errors):
-                        error_series[indices] = error
+                        for idx, e in zip(indices, error):
+                            error_sums[idx] += e
+                            error_counts[idx] += 1
+
+                    nonzero_mask = error_counts > 0
+                    error_series[nonzero_mask] = error_sums[nonzero_mask] / error_counts[nonzero_mask]
 
                     input_windows = np.flip(np.arange(WINDOW_PAST - 1, len(error_series) - WINDOW_PRESENT + 1)[:, None] - np.arange(WINDOW_PAST), axis=1)
                     output_windows = (np.arange(WINDOW_PAST, len(error_series) - WINDOW_PRESENT + 1)[:, None] + np.arange(WINDOW_PRESENT))
@@ -251,31 +257,27 @@ class Client:
                     y = np.max(error_series[output_windows], axis=1, keepdims=True)
 
                     chunk.append((x, y))
-                
+
                 self.threshold_networks_fit_data.append(chunk)
-        
+
         for index, threshold_network in enumerate(self.threshold_networks):
-                
-                chunk = self.threshold_networks_fit_data[index]
-                (x_train, y_train), (x_val, y_val) = chunk
 
-                threshold_network.fit(
-                    x=x_train,
-                    y=y_train,
+            chunk = self.threshold_networks_fit_data[index]
+            (x_train, y_train), (x_val, y_val) = chunk
 
-                    validation_data=(
-                        x_val,
-                        y_val
-                    ),
+            threshold_network.fit(
+                x=x_train,
+                y=y_train,
 
-                    batch_size=BATCH_SIZE,
+                validation_data=(x_val, y_val),
 
-                    epochs=self.threshold_epochs,
-                    steps_per_epoch=self.threshold_steps,
+                batch_size=BATCH_SIZE,
+                epochs=self.threshold_epochs,
+                steps_per_epoch=self.threshold_steps,
 
-                    verbose=config.VERBOSE
-                )
-    
+                verbose=config.VERBOSE
+            )
+
     def eval_threshold_network(self, threshold_networks: list[ThresholdNetworkDAICS], clear_cache: bool = False) -> float:
 
         if clear_cache or not len(self.threshold_networks_eval_data):
@@ -293,12 +295,19 @@ class Client:
                 )
 
                 ground_truth = self.df_test[self.test_output_indices][:, :, SENSOR_GROUPS_INDICES[index]]
-
                 errors = np.mean((predicted - ground_truth) ** 2, axis=-1)
+
                 error_series = np.zeros(len(self.df_test))
+                error_sums = np.zeros_like(error_series)
+                error_counts = np.zeros_like(error_series)
 
                 for indices, error in zip(self.test_output_indices, errors):
-                    error_series[indices] = error
+                    for idx, e in zip(indices, error):
+                        error_sums[idx] += e
+                        error_counts[idx] += 1
+
+                nonzero_mask = error_counts > 0
+                error_series[nonzero_mask] = error_sums[nonzero_mask] / error_counts[nonzero_mask]
 
                 input_windows = np.flip((np.arange(WINDOW_PAST - 1, len(error_series) - WINDOW_PRESENT + 1)[:, None] - np.arange(WINDOW_PAST)), axis=1)
                 output_windows = (np.arange(WINDOW_PAST, len(error_series) - WINDOW_PRESENT + 1)[:, None] + np.arange(WINDOW_PRESENT))
@@ -307,14 +316,14 @@ class Client:
                 output_windows = output_windows[:len(input_windows)]
 
                 x = error_series[input_windows][:, :, None]
-                y = np.max(error_series[output_windows], axis=1, keepdims=True) 
+                y = np.max(error_series[output_windows], axis=1, keepdims=True)
 
                 self.threshold_networks_eval_data.append((x, y))
 
         scores = []
 
         for index, model in enumerate(threshold_networks):
-            
+
             x_test, y_test = self.threshold_networks_eval_data[index]
 
             score = model.evaluate(
@@ -325,9 +334,9 @@ class Client:
 
                 verbose=config.VERBOSE
             )
-        
+
             scores.append(score)
-        
+
         self.threshold_score = -np.mean(scores)
 
         return self.threshold_score
@@ -347,7 +356,7 @@ class Client:
             optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
             loss=LOSS
         )
-    
+
 def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], threshold_networks: list[ThresholdNetworkDAICS] = []) -> list[Client]:
 
     hf = h5py.File(name=OUTPUT_FILE, mode="r")
