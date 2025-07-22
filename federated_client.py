@@ -592,9 +592,9 @@ def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], th
         df_test = df_normal_test[test_indices_used]
 
         # Truncate to batch-aligned window counts
-        train_input_indices, train_output_indices = truncate_windows(train_input_indices, train_output_indices)
-        val_input_indices, val_output_indices = truncate_windows(val_input_indices, val_output_indices)
-        test_input_indices, test_output_indices = truncate_windows(test_input_indices, test_output_indices)
+        train_in_local, train_out_local = truncate_windows(train_in_local, train_out_local)
+        val_in_local, val_out_local = truncate_windows(val_in_local, val_out_local)
+        test_in_local, test_out_local = truncate_windows(test_in_local, test_out_local)
         df_attack_input_indices, df_attack_output_indices = truncate_windows(df_attack_input_indices, df_attack_output_indices)
 
         # Create client object
@@ -604,14 +604,14 @@ def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], th
             df_test=df_test,
             df_real=df_attack,
 
-            train_input_indices=train_input_indices,
-            train_output_indices=train_output_indices,
+            train_input_indices=train_in_local,
+            train_output_indices=train_out_local,
 
-            val_input_indices=val_input_indices,
-            val_output_indices=val_output_indices,
+            val_input_indices=val_in_local,
+            val_output_indices=val_out_local,
 
-            test_input_indices=test_input_indices,
-            test_output_indices=test_output_indices,
+            test_input_indices=test_in_local,
+            test_output_indices=test_out_local,
 
             real_input_indices=df_attack_input_indices,
             real_output_indices=df_attack_output_indices,
