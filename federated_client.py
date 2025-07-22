@@ -68,6 +68,13 @@ class Client:
         self.df_test = df_test
         self.df_real = df_real
 
+        self.all_labels = self.df_real[:, -1].astype(int)
+
+        self.df_train = self.df_train[:, :-1]
+        self.df_val = self.df_val[:, :-1]
+        self.df_test = self.df_test[:, :-1]
+        self.df_real = self.df_real[:, :-1]
+
         self.train_input_indices = train_input_indices
         self.train_output_indices = train_output_indices
 
@@ -85,13 +92,42 @@ class Client:
         self.wide_deep_steps = 0
         self.wide_deep_score = 0
 
-        self.threshold_networks = []
-        self.threshold_epochs = 0
-        self.threshold_steps = 0
-        self.threshold_score = 0
-        self.threshold_networks_fit_data = []
-        self.threshold_networks_eval_data = []
+        self.wide_deep_fit_data = []
 
+        for index in range(len(SENSOR_GROUPS_INDICES)):
+
+            x = SlidingWindowGenerator(
+                data=self.df_train,
+                input_indices=self.train_input_indices,
+                output_indices=self.train_output_indices,
+                sensor_indices=SENSOR_GROUPS_INDICES[index],
+                batch_size=BATCH_SIZE
+            )
+
+            validation_data = SlidingWindowGenerator(
+                data=self.df_val,
+                input_indices=self.val_input_indices,
+                output_indices=self.val_output_indices,
+                sensor_indices=SENSOR_GROUPS_INDICES[index],
+                batch_size=BATCH_SIZE
+            )
+
+            self.wide_deep_fit_data.append((x, validation_data))
+
+        self.wide_deep_eval_data = []
+
+        for index in range(len(SENSOR_GROUPS_INDICES)):
+
+            x = SlidingWindowGenerator(
+                data=self.df_test,
+                input_indices=self.test_input_indices,
+                output_indices=self.test_output_indices,
+                sensor_indices=SENSOR_GROUPS_INDICES[index],
+                batch_size=BATCH_SIZE
+            )
+
+            self.wide_deep_eval_data.append(x)
+        
         if len(wide_deep_networks) != len(SENSOR_GROUPS_INDICES):
 
             for sensors_indices in SENSOR_GROUPS_INDICES:
@@ -118,6 +154,13 @@ class Client:
                 loss=LOSS
             )
 
+        self.threshold_networks = []
+        self.threshold_epochs = 0
+        self.threshold_steps = 0
+        self.threshold_score = 0
+        self.threshold_networks_fit_data = []
+        self.threshold_networks_eval_data = []
+
         if len(threshold_networks) != len(SENSOR_GROUPS_INDICES):
 
             for _ in SENSOR_GROUPS_INDICES:
@@ -136,46 +179,6 @@ class Client:
                 optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
                 loss=LOSS
             )
-
-        self.all_labels = self.df_real[:, -1].astype(int)
-
-        self.df_train = self.df_train[:, :-1]
-        self.df_val = self.df_val[:, :-1]
-        self.df_test = self.df_test[:, :-1]
-        self.df_real = self.df_real[:, :-1]
-
-        self.wide_deep_fit_data = []
-
-        for index in range(len(SENSOR_GROUPS_INDICES)):
-            x = SlidingWindowGenerator(
-                data=self.df_train,
-                input_indices=self.train_input_indices,
-                output_indices=self.train_output_indices,
-                sensor_indices=SENSOR_GROUPS_INDICES[index],
-                batch_size=BATCH_SIZE
-            )
-
-            validation_data = SlidingWindowGenerator(
-                data=self.df_val,
-                input_indices=self.val_input_indices,
-                output_indices=self.val_output_indices,
-                sensor_indices=SENSOR_GROUPS_INDICES[index],
-                batch_size=BATCH_SIZE
-            )
-
-            self.wide_deep_fit_data.append((x, validation_data))
-
-        self.wide_deep_eval_data = []
-
-        for index in range(len(SENSOR_GROUPS_INDICES)):
-
-            self.wide_deep_eval_data.append(SlidingWindowGenerator(
-                data=self.df_test,
-                input_indices=self.test_input_indices,
-                output_indices=self.test_output_indices,
-                sensor_indices=SENSOR_GROUPS_INDICES[index],
-                batch_size=BATCH_SIZE
-            ))
 
     def train_wide_deep_network(self, wide_deep_networks: list[WideDeepNetworkDAICS]):
         
@@ -527,24 +530,10 @@ def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], th
         df_val = df_normal_val[val_indices_used]
         df_test = df_normal_test[test_indices_used]
 
-        # Map global indices to local indices
-        train_map = {idx: j for j, idx in enumerate(train_indices_used)}
-        val_map = {idx: j for j, idx in enumerate(val_indices_used)}
-        test_map = {idx: j for j, idx in enumerate(test_indices_used)}
-
-        train_in_local = np.vectorize(train_map.get)(train_input_indices)
-        train_out_local = np.vectorize(train_map.get)(train_output_indices)
-
-        val_in_local = np.vectorize(val_map.get)(val_input_indices)
-        val_out_local = np.vectorize(val_map.get)(val_output_indices)
-
-        test_in_local = np.vectorize(test_map.get)(test_input_indices)
-        test_out_local = np.vectorize(test_map.get)(test_output_indices)
-
         # Truncate to batch-aligned window counts
-        train_in_local, train_out_local = truncate_windows(train_in_local, train_out_local)
-        val_in_local, val_out_local = truncate_windows(val_in_local, val_out_local)
-        test_in_local, test_out_local = truncate_windows(test_in_local, test_out_local)
+        train_input_indices, train_output_indices = truncate_windows(train_input_indices, train_output_indices)
+        val_input_indices, val_output_indices = truncate_windows(val_input_indices, val_output_indices)
+        test_input_indices, test_output_indices = truncate_windows(test_input_indices, test_output_indices)
         df_attack_input_indices, df_attack_output_indices = truncate_windows(df_attack_input_indices, df_attack_output_indices)
 
         # Create client object
@@ -554,14 +543,14 @@ def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], th
             df_test=df_test,
             df_real=df_attack,
 
-            train_input_indices=train_in_local,
-            train_output_indices=train_out_local,
+            train_input_indices=train_input_indices,
+            train_output_indices=train_output_indices,
 
-            val_input_indices=val_in_local,
-            val_output_indices=val_out_local,
+            val_input_indices=val_input_indices,
+            val_output_indices=val_output_indices,
 
-            test_input_indices=test_in_local,
-            test_output_indices=test_out_local,
+            test_input_indices=test_input_indices,
+            test_output_indices=test_output_indices,
 
             real_input_indices=df_attack_input_indices,
             real_output_indices=df_attack_output_indices,
