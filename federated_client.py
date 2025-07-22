@@ -591,6 +591,20 @@ def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], th
         df_val = df_normal_val[val_indices_used]
         df_test = df_normal_test[test_indices_used]
 
+        # Map global indices to local indices
+        train_map = {idx: j for j, idx in enumerate(train_indices_used)}
+        val_map = {idx: j for j, idx in enumerate(val_indices_used)}
+        test_map = {idx: j for j, idx in enumerate(test_indices_used)}
+
+        train_in_local = np.vectorize(train_map.get)(train_input_indices)
+        train_out_local = np.vectorize(train_map.get)(train_output_indices)
+
+        val_in_local = np.vectorize(val_map.get)(val_input_indices)
+        val_out_local = np.vectorize(val_map.get)(val_output_indices)
+
+        test_in_local = np.vectorize(test_map.get)(test_input_indices)
+        test_out_local = np.vectorize(test_map.get)(test_output_indices)
+
         # Truncate to batch-aligned window counts
         train_in_local, train_out_local = truncate_windows(train_in_local, train_out_local)
         val_in_local, val_out_local = truncate_windows(val_in_local, val_out_local)
@@ -623,3 +637,4 @@ def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], th
         clients.append(client)
 
     return clients
+
