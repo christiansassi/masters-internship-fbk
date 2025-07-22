@@ -35,6 +35,8 @@ from uuid import uuid4
 
 import tensorflow as tf
 
+import matplotlib.pyplot as plt
+
 class Client:
 
     def __init__(
@@ -399,17 +401,36 @@ class Client:
         wide_deep_input_windows = self.real_input_indices
         wide_deep_output_windows = self.real_output_indices
 
-        threshold_input_windows = np.flip(np.arange(WINDOW_PAST - 1, len(self.df_real) - WINDOW_PRESENT + 1)[:, None] - np.arange(WINDOW_PAST), axis=1)
-        threshold_input_windows = threshold_input_windows[:(len(threshold_input_windows) // BATCH_SIZE) * BATCH_SIZE]
-
-        threshold_output_windows = (np.arange(WINDOW_PAST, len(self.df_real) - WINDOW_PRESENT + 1)[:, None] + np.arange(WINDOW_PRESENT))
-        threshold_output_windows = threshold_output_windows[:len(threshold_input_windows)]
-
-        start = wide_deep_output_windows[0][0]
-        start = 1500
+        start = 0
 
         errors = {str(i): {"0": 0., "1": 0., "2": 0., "3": 0., "4": 0., "5": 0., "6": 0.,} for i in range(wide_deep_output_windows[start][0])}
         thresholds = {}
+
+        fig, axes = plt.subplots(3, 2, figsize=(10, 8))
+        axes = axes.flatten()
+
+        lines = []
+        points = []
+
+        for ax in axes:
+            line, = ax.plot([], [], label="Threshold")
+            point, = ax.plot([], [], "o", markersize=3, label="Error")
+
+            lines.append({
+                "obj": line,
+                "x": deque(maxlen=100),
+                "y": deque(maxlen=100)
+            })
+
+            points.append({
+                "obj": point,
+                "x": deque(maxlen=100),
+                "y": deque(maxlen=100)
+            })
+
+        plt.tight_layout()
+        plt.ion()
+        plt.show()
 
         # Iterate over the input windows
         for index1 in range(start, len(wide_deep_input_windows)):
@@ -477,8 +498,48 @@ class Client:
             anomalies = [int(ce > ct) for ce, ct in zip(current_errors, current_thresholds)]
             alarm = sum(anomalies) >= len(anomalies) // 2
 
-            if int(alarm) != self.all_labels[int(t)]:
-                print("WRONG")
+            # if not alarm:
+
+            #     for i, (threshold_network, threshold_input) in enumerate(zip(self.threshold_networks, threshold_inputs)):
+
+            #         target = np.array(errors[t][str(i)])
+            #         target = np.expand_dims(np.expand_dims(target, axis=0), axis=-1)
+
+            #         threshold_network.fit(
+            #             x=np.expand_dims(threshold_input, axis=(0, 2)),
+            #             y=target,
+
+            #             batch_size=1,
+
+            #             verbose=config.VERBOSE
+            #         )
+
+            for i in range(len(SENSOR_GROUPS_INDICES)):
+
+                lines[i]["x"].append(int(t))
+                lines[i]["y"].append(current_thresholds[i])
+                lines[i]["obj"].set_data(lines[i]["x"], lines[i]["y"])
+
+                points[i]["x"].append(int(t))
+                points[i]["y"].append(current_errors[i])
+                points[i]["obj"].set_data(points[i]["x"], points[i]["y"])
+
+                axes[i].set_xlim(
+                    min(min(lines[i]["x"]), min(points[i]["x"])),
+                    max(max(lines[i]["x"]), max(points[i]["x"]))
+                )
+
+                axes[i].set_ylim(
+                    min(min(lines[i]["y"]), min(points[i]["y"])),
+                    max(max(lines[i]["y"]), max(points[i]["y"]))
+                )
+
+            fig.canvas.draw()
+            fig.canvas.flush_events()
+            plt.pause(0.05)
+
+            # if int(alarm) != self.all_labels[int(t)]:
+            #     print("WRONG")
 
 def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], threshold_networks: list[ThresholdNetworkDAICS] = []) -> list[Client]:
 
