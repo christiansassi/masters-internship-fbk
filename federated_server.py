@@ -95,7 +95,7 @@ class Server:
 
         # Align the client's models with the server's
         for client in self.clients:
-            client.set_wide_deep_network(wide_deep_networks=self.wide_deep_networks)
+            client.set_wide_deep_networks(wide_deep_networks=self.wide_deep_networks)
             client.set_threshold_networks(threshold_networks=self.threshold_networks)
 
     def select_clients(self, label: str) -> list[Client]:

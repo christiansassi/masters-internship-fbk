@@ -10,6 +10,7 @@ logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
 
 import tensorflow as tf
 

@@ -13,7 +13,9 @@ from constants import (
     MAX_EPOCHS,
     W_ANOMALY,
     W_GRACE,
-    SENSORS_GROUPS
+    SENSORS_GROUPS,
+    MED_FILTER_LAG,
+    CACHE_CLIENTS
 )
 
 import config
@@ -22,20 +24,26 @@ from models import (
     WideDeepNetworkDAICS, 
     clone_wide_deep_networks,
     ThresholdNetworkDAICS,
-    clone_threshold_networks
+    clone_threshold_networks,
+    load_wide_deep_networks,
+    load_threshold_networks
 )
 
 from generators import SlidingWindowGenerator
 
 import h5py
 import numpy as np
-from collections import deque
 
 from uuid import uuid4
 
 import tensorflow as tf
 
-import matplotlib.pyplot as plt
+import scipy.signal
+
+from os import makedirs, listdir
+from os.path import join
+
+import pickle
 
 class Client:
 
@@ -182,6 +190,9 @@ class Client:
                 loss=LOSS
             )
 
+    def __str__(self) -> str:
+        return self.id
+
     def train_wide_deep_network(self, wide_deep_networks: list[WideDeepNetworkDAICS]):
         
         self.wide_deep_networks = clone_wide_deep_networks(
@@ -229,7 +240,7 @@ class Client:
 
         return self.wide_deep_score
 
-    def set_wide_deep_network(self, wide_deep_networks: list[WideDeepNetworkDAICS]):
+    def set_wide_deep_networks(self, wide_deep_networks: list[WideDeepNetworkDAICS]):
 
         self.threshold_networks = clone_wide_deep_networks(
             wide_deep_networks=wide_deep_networks,
@@ -237,10 +248,10 @@ class Client:
             loss=LOSS
         )
 
-    def get_wide_deep_network(self) -> list[WideDeepNetworkDAICS]:
+    def get_wide_deep_networks(self) -> list[WideDeepNetworkDAICS]:
 
         return clone_wide_deep_networks(
-            wide_deep_networks=self.threshold_networks,
+            wide_deep_networks=self.wide_deep_networks,
             optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
             loss=LOSS
         )
@@ -396,150 +407,96 @@ class Client:
             loss=LOSS
         )
     
+    def calcuate_threshold_base(self) -> list[float]:
+
+        all_smoothed_errors = []
+
+        for index, wide_deep_network in enumerate(self.wide_deep_networks):
+
+            predicted = wide_deep_network.predict(
+                x=self.df_val[self.val_input_indices],
+
+                batch_size=BATCH_SIZE,
+
+                verbose=config.VERBOSE
+            )
+
+            ground_truth = self.df_val[self.val_output_indices][:, :, SENSOR_GROUPS_INDICES[index]]
+            errors = np.mean((predicted - ground_truth) ** 2, axis=-1)
+
+            error_series = np.zeros(len(self.df_test))
+            error_sums = np.zeros_like(error_series)
+            error_counts = np.zeros_like(error_series)
+
+            for indices, error in zip(self.test_output_indices, errors):
+                for idx, e in zip(indices, error):
+                    error_sums[idx] += e
+                    error_counts[idx] += 1
+
+            nonzero_mask = error_counts > 0
+            error_series[nonzero_mask] = error_sums[nonzero_mask] / error_counts[nonzero_mask]
+
+            smoothed_series = scipy.signal.medfilt(error_series[nonzero_mask], kernel_size=59)
+
+            all_smoothed_errors.extend(smoothed_series.tolist())
+
+        err_mean = np.mean(all_smoothed_errors)
+        err_std = np.std(all_smoothed_errors)
+        t_base = err_mean + err_std
+
+        return [t_base for _ in SENSOR_GROUPS_INDICES]
+
     def simulate(self):
 
-        wide_deep_input_windows = self.real_input_indices
-        wide_deep_output_windows = self.real_output_indices
+        threshold_base = self.calcuate_threshold_base()
 
-        start = 0
+        wide_deep_network_errors = [[] for _ in SENSOR_GROUPS_INDICES]
 
-        errors = {str(i): {"0": 0., "1": 0., "2": 0., "3": 0., "4": 0., "5": 0., "6": 0.,} for i in range(wide_deep_output_windows[start][0])}
-        thresholds = {}
+        for index, wide_deep_network in enumerate(self.wide_deep_networks):
 
-        fig, axes = plt.subplots(3, 2, figsize=(10, 8))
-        axes = axes.flatten()
+            predicted_sensors = wide_deep_network.predict(
+                x=self.df_real[self.real_input_indices],
 
-        lines = []
-        points = []
+                batch_size=BATCH_SIZE,
 
-        for ax in axes:
-            line, = ax.plot([], [], label="Threshold")
-            point, = ax.plot([], [], "o", markersize=3, label="Error")
+                verbose=config.VERBOSE
+            )
 
-            lines.append({
-                "obj": line,
-                "x": deque(maxlen=100),
-                "y": deque(maxlen=100)
-            })
+            real_sensors = self.df_real[self.real_output_indices][:, :, SENSOR_GROUPS_INDICES[index]]
 
-            points.append({
-                "obj": point,
-                "x": deque(maxlen=100),
-                "y": deque(maxlen=100)
-            })
+            errors = np.mean((predicted_sensors - real_sensors) ** 2, axis=-1)
 
-        plt.tight_layout()
-        plt.ion()
-        plt.show()
+            error_series = np.zeros(len(self.df_real))
+            error_sums = np.zeros_like(error_series)
+            error_counts = np.zeros_like(error_series)
 
-        # Iterate over the input windows
-        for index1 in range(start, len(wide_deep_input_windows)):
+            for indices, error in zip(self.real_output_indices, errors):
+                for idx, e in zip(indices, error):
+                    error_sums[idx] += e
+                    error_counts[idx] += 1
+
+            nonzero_mask = error_counts > 0
+            error_series[nonzero_mask] = error_sums[nonzero_mask] / error_counts[nonzero_mask]
             
-            # Take the last timestep of the current window.
-            # This is the last time we see this timestep so we can calculate the avg of all the cumulated MSEs
-            t = str(wide_deep_output_windows[index1][0])
+            wide_deep_network_errors[index] = error_series
 
-            print(f"{t}", end="\r")
+        # for input_window, output_window in zip(self.real_input_indices, self.real_output_indices):
 
-            # Iterate over the wide deep networks
-            for index2, wide_deep_network in enumerate(self.wide_deep_networks):
+        #     for index, wide_deep_network in enumerate(self.wide_deep_networks):
 
-                predicted_sensors = wide_deep_network.predict(
-                    x=np.expand_dims(self.df_real[wide_deep_input_windows[index1]], axis=0),
+        #         predicted_sensors = wide_deep_network.predict(
+        #             x=np.expand_dims(self.df_real[input_window], axis=0),
 
-                    batch_size=1,
+        #             batch_size=1,
 
-                    verbose=config.VERBOSE
-                )[0]
+        #             verbose=config.VERBOSE
+        #         )[0]
 
-                real_sensors = self.df_real[wide_deep_output_windows[index1]][:, SENSOR_GROUPS_INDICES[index2]]
+        #         real_sensors = self.df_real[output_window][:, SENSOR_GROUPS_INDICES[index]]
 
-                # The mse is calculated between each timestep. So 110 (real) with 110 (predicted)
-                # In the end, we obtain a single value (mse) for each timestep 
-                mse_per_timestep = np.mean((predicted_sensors - real_sensors) ** 2, axis=1)
+        #         mse_per_timestep = np.mean((predicted_sensors - real_sensors) ** 2, axis=1)
 
-                # Since some input windows are overlapping (e.g. 113 is present in multiple windows), 
-                # we keep track of each error for each timestep
-                for index3, index4 in enumerate(wide_deep_output_windows[index1]):
-                    errors.setdefault(str(index4), {}).setdefault(str(index2), []).append(mse_per_timestep[index3])
-
-            for key in errors[t].keys():
-                errors[t][key] = np.mean(errors[t][key])
-            
-            # Do the same for the threshold
-            threshold_inputs = [[] for _ in range(len(SENSOR_GROUPS_INDICES))]
-
-            # The input of the threshold networks are generated by taking the last 60 errors from t (excluded)
-            for key in range(int(t) - 60, int(t)):
-                for index2 in range(len(SENSOR_GROUPS_INDICES)):
-                    threshold_inputs[index2].append(errors[str(key)][str(index2)])
-            
-            # Predict the thresholds for each input
-            for index2, (threshold_network, threshold_input) in enumerate(zip(self.threshold_networks, threshold_inputs)):
-
-                predicted_error = threshold_network.predict(
-                    x=np.expand_dims(threshold_input, axis=(0, 2)),
-
-                    batch_size=1,
-
-                    verbose=config.VERBOSE
-                ).item()
-
-                for index3 in wide_deep_output_windows[index1]:
-                    thresholds.setdefault(str(index3), {}).setdefault(str(index2), []).append(predicted_error)
-            
-            # Similarly to what happened for the errors, also here we calculate the avg of all the cumulated thresholds for the last timestep
-            for key in thresholds[t].keys():
-                thresholds[t][key] = np.mean(thresholds[t][key])
-            
-            current_errors = list(errors[t].values())
-            current_thresholds = list(thresholds[t].values())
-
-            anomalies = [int(ce > ct) for ce, ct in zip(current_errors, current_thresholds)]
-            alarm = sum(anomalies) >= len(anomalies) // 2
-
-            # if not alarm:
-
-            #     for i, (threshold_network, threshold_input) in enumerate(zip(self.threshold_networks, threshold_inputs)):
-
-            #         target = np.array(errors[t][str(i)])
-            #         target = np.expand_dims(np.expand_dims(target, axis=0), axis=-1)
-
-            #         threshold_network.fit(
-            #             x=np.expand_dims(threshold_input, axis=(0, 2)),
-            #             y=target,
-
-            #             batch_size=1,
-
-            #             verbose=config.VERBOSE
-            #         )
-
-            for i in range(len(SENSOR_GROUPS_INDICES)):
-
-                lines[i]["x"].append(int(t))
-                lines[i]["y"].append(current_thresholds[i])
-                lines[i]["obj"].set_data(lines[i]["x"], lines[i]["y"])
-
-                points[i]["x"].append(int(t))
-                points[i]["y"].append(current_errors[i])
-                points[i]["obj"].set_data(points[i]["x"], points[i]["y"])
-
-                axes[i].set_xlim(
-                    min(min(lines[i]["x"]), min(points[i]["x"])),
-                    max(max(lines[i]["x"]), max(points[i]["x"]))
-                )
-
-                axes[i].set_ylim(
-                    min(min(lines[i]["y"]), min(points[i]["y"])),
-                    max(max(lines[i]["y"]), max(points[i]["y"]))
-                )
-
-            fig.canvas.draw()
-            fig.canvas.flush_events()
-            plt.pause(0.05)
-
-            # if int(alarm) != self.all_labels[int(t)]:
-            #     print("WRONG")
+        #         mse_per_timestep
 
 def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], threshold_networks: list[ThresholdNetworkDAICS] = []) -> list[Client]:
 
@@ -638,3 +595,45 @@ def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], th
 
     return clients
 
+def save_clients(clients: list[Client]):
+
+    for client in clients:
+
+        client_dir = join(CACHE_CLIENTS, str(client))
+
+        makedirs(client_dir, exist_ok=True)
+
+        wide_deep_networks = client.get_wide_deep_networks()
+        threshold_networks = client.get_threshold_networks()
+
+        client.wide_deep_networks = []
+        client.threshold_networks = []
+
+        with open(join(client_dir, f"{str(client)}.pkl"), "wb+") as f:
+            pickle.dump(client, f)
+
+        client.set_wide_deep_networks(wide_deep_networks=wide_deep_networks)
+        client.set_threshold_networks(threshold_networks=threshold_networks)
+
+def load_clients() -> list[Client]:
+
+    clients = []
+
+    wide_deep_networks = load_wide_deep_networks()
+    threshold_networks = load_threshold_networks()
+
+    for client_id in listdir(CACHE_CLIENTS):
+
+        client_dir = join(CACHE_CLIENTS, client_id)
+
+        with open(join(client_dir, f"{client_id}.pkl"), "rb") as f:
+            client = pickle.load(f)
+        
+        client.id = client_id
+
+        client.set_wide_deep_networks(wide_deep_networks=wide_deep_networks)
+        client.set_threshold_networks(threshold_networks=threshold_networks)
+
+        clients.append(client)
+    
+    return clients

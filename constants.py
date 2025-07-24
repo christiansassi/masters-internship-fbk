@@ -59,6 +59,8 @@ W_ANOMALY: int = 30
 # Based on that, attack impact is considered as part of the attack, and we avoid human intervention on the period just after the attack
 W_GRACE: int = 0
 
+MED_FILTER_LAG: int = 59
+
 #? === Constants from FLAD ===
 
 MIN_EPOCHS: int = 1
@@ -94,6 +96,9 @@ THRESHOLD_NETWORKS: str = join(MODELS, "threshold_networks")
 THRESHOLD_NETWORKS_TMP: str = join(MODELS_TMP, "threshold_networks")
 THRESHOLD_NETWORKS_BASENAME: str = "threshold_network"
 THRESHOLD_NETWORKS_LABEL: str = "threshold"
+
+CACHE: str = "cache"
+CACHE_CLIENTS: str = join(CACHE, "clients")
 
 #? === Federated Learning
 
