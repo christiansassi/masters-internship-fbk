@@ -242,7 +242,7 @@ class Client:
 
     def set_wide_deep_networks(self, wide_deep_networks: list[WideDeepNetworkDAICS]):
 
-        self.threshold_networks = clone_wide_deep_networks(
+        self.wide_deep_networks = clone_wide_deep_networks(
             wide_deep_networks=wide_deep_networks,
             optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
             loss=LOSS
@@ -450,7 +450,7 @@ class Client:
 
         threshold_base = self.calcuate_threshold_base()
 
-        wide_deep_network_errors = [[] for _ in SENSOR_GROUPS_INDICES]
+        wide_deep_networks_real_errors = [[] for _ in SENSOR_GROUPS_INDICES]
 
         for index, wide_deep_network in enumerate(self.wide_deep_networks):
 
@@ -478,7 +478,9 @@ class Client:
             nonzero_mask = error_counts > 0
             error_series[nonzero_mask] = error_sums[nonzero_mask] / error_counts[nonzero_mask]
             
-            wide_deep_network_errors[index] = error_series
+            wide_deep_networks_real_errors[index] = error_series
+
+        self.wide_deep_networks_real_errors = wide_deep_networks_real_errors
 
         # for input_window, output_window in zip(self.real_input_indices, self.real_output_indices):
 
