@@ -103,6 +103,7 @@ class Client:
         self.wide_deep_score = 0
 
         self.wide_deep_fit_data = []
+        self.wide_deep_real_data = []
 
         for index in range(len(SENSOR_GROUPS_INDICES)):
 
@@ -123,6 +124,16 @@ class Client:
             )
 
             self.wide_deep_fit_data.append((x, validation_data))
+
+            x = SlidingWindowGenerator(
+                data=self.df_real,
+                input_indices=self.real_input_indices,
+                output_indices=self.real_output_indices,
+                sensor_indices=SENSOR_GROUPS_INDICES[index],
+                batch_size=BATCH_SIZE
+            )
+
+            self.wide_deep_real_data.append(x)
 
         self.wide_deep_eval_data = []
 
@@ -455,7 +466,7 @@ class Client:
         for index, wide_deep_network in enumerate(self.wide_deep_networks):
 
             predicted_sensors = wide_deep_network.predict(
-                x=self.df_real[self.real_input_indices],
+                x=self.wide_deep_real_data[index],
 
                 batch_size=BATCH_SIZE,
 

@@ -15,19 +15,19 @@ if __name__ == "__main__":
     
     utils.clear_console() 
 
-    # Load wide deep networks
-    wide_deep_networks = load_wide_deep_networks()
+    # # Load wide deep networks
+    # wide_deep_networks = load_wide_deep_networks()
 
-    # Load threshold networks
-    threshold_networks = load_threshold_networks()
+    # # Load threshold networks
+    # threshold_networks = load_threshold_networks()
     
-    # Generate clients
-    clients = generate_iid_clients(
-        wide_deep_networks=wide_deep_networks,
-        threshold_networks=threshold_networks
-    )
+    # # Generate clients
+    # clients = generate_iid_clients(
+    #     wide_deep_networks=wide_deep_networks,
+    #     threshold_networks=threshold_networks
+    # )
 
-    save_clients(clients=clients)
+    # save_clients(clients=clients)
 
     # # Create server
     # server = Server(
@@ -49,3 +49,5 @@ if __name__ == "__main__":
 
     for client in clients:
         client.simulate()
+    
+    save_clients(clients=clients)
