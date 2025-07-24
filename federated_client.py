@@ -16,7 +16,8 @@ from constants import (
     SENSORS_GROUPS,
     MED_FILTER_LAG,
     CACHE_CLIENTS,
-    T_EPOCHS
+    T_EPOCHS,
+    THRESHOLD_NETWORKS_BASENAME
 )
 
 import config
@@ -340,7 +341,7 @@ class Client:
                 verbose=config.VERBOSE
             )
 
-    def train_threshold_network(self) -> float:
+    def train_threshold_network_locally(self) -> float:
 
         threshold_networks_fit_data = []
 
@@ -466,7 +467,7 @@ class Client:
 
         return self.threshold_score
 
-    def eval_threshold_network(self) -> float:
+    def eval_threshold_network_locally(self) -> float:
 
         threshold_networks_eval_data = []
 
@@ -510,7 +511,7 @@ class Client:
 
         for index, model in enumerate(self.threshold_networks):
 
-            x_test, y_test = self.threshold_networks_eval_data[index]
+            x_test, y_test = threshold_networks_eval_data[index]
 
             score = model.evaluate(
                 x=x_test,
@@ -775,3 +776,26 @@ def load_clients() -> list[Client]:
         clients.append(client)
     
     return clients
+
+def train_threshold_networks_locally(clients: list[Client]):
+
+    scores = []
+
+    for client in clients:
+
+        # Train
+        client.train_threshold_network_locally()
+
+        # Eval
+        score = client.eval_threshold_network_locally()
+        scores.append(score)
+
+        # Save
+        client_dir = join(CACHE_CLIENTS, str(client))
+
+        makedirs(client_dir, exist_ok=True)
+
+        for index, threshold_network in enumerate(client.threshold_networks):
+            threshold_network.save(join(client_dir, "threshold_networks", f"{THRESHOLD_NETWORKS_BASENAME}_{index + 1}"), save_format="tf")
+
+    scores

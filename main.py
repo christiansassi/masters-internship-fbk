@@ -9,7 +9,7 @@ import utils
 from models import load_wide_deep_networks, load_threshold_networks
 
 from federated_server import Server
-from federated_client import generate_iid_clients, save_clients, load_clients
+from federated_client import generate_iid_clients, save_clients, load_clients, train_threshold_networks_locally
 
 if __name__ == "__main__":
     
@@ -19,15 +19,13 @@ if __name__ == "__main__":
     wide_deep_networks = load_wide_deep_networks()
 
     # Load threshold networks
-    threshold_networks = load_threshold_networks()
+    threshold_networks = [] # load_threshold_networks()
     
     # Generate clients
     clients = generate_iid_clients(
         wide_deep_networks=wide_deep_networks,
         threshold_networks=threshold_networks
     )
-
-    save_clients(clients=clients)
 
     # Create server
     server = Server(
@@ -41,13 +39,17 @@ if __name__ == "__main__":
         server.federated_learning(label=WIDE_DEEP_NETWORKS_LABEL)
 
     if not len(threshold_networks):
-        # Federated learning (threshold networks)
-        server.federated_learning(label=THRESHOLD_NETWORKS_LABEL)
-    
-    # # Simulate deploy
-    # clients = load_clients()
 
-    # for client in clients:
-    #     client.simulate()
+        # Federated learning (threshold networks)
+        #server.federated_learning(label=THRESHOLD_NETWORKS_LABEL)
+
+        # Local training (threshold networks)
+        train_threshold_networks_locally(clients=clients)
     
-    # save_clients(clients=clients)
+    # Simulate deploy
+    clients = load_clients()
+
+    for client in clients:
+        client.simulate()
+    
+    save_clients(clients=clients)
