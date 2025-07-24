@@ -15,7 +15,8 @@ from constants import (
     W_GRACE,
     SENSORS_GROUPS,
     MED_FILTER_LAG,
-    CACHE_CLIENTS
+    CACHE_CLIENTS,
+    T_EPOCHS
 )
 
 import config
@@ -250,7 +251,7 @@ class Client:
         self.wide_deep_score = -np.mean(scores)
 
         return self.wide_deep_score
-
+    
     def set_wide_deep_networks(self, wide_deep_networks: list[WideDeepNetworkDAICS]):
 
         self.wide_deep_networks = clone_wide_deep_networks(
@@ -339,6 +340,69 @@ class Client:
                 verbose=config.VERBOSE
             )
 
+    def train_threshold_network(self) -> float:
+
+        threshold_networks_fit_data = []
+
+        for index, wide_deep_network in enumerate(self.wide_deep_networks):
+
+            chunk = []
+
+            for label in ["train", "val"]:
+                predicted = wide_deep_network.predict(
+                    x=getattr(self, f"df_{label}")[getattr(self, f"{label}_input_indices")],
+
+                    batch_size=BATCH_SIZE,
+
+                    verbose=config.VERBOSE
+                )
+
+                ground_truth = getattr(self, f"df_{label}")[getattr(self, f"{label}_output_indices")][:, :, SENSOR_GROUPS_INDICES[index]]
+
+                errors = np.mean((predicted - ground_truth) ** 2, axis=-1)
+
+                error_series = np.zeros(len(getattr(self, f"df_{label}")))
+                error_sums = np.zeros_like(error_series)
+                error_counts = np.zeros_like(error_series)
+
+                for indices, error in zip(getattr(self, f"{label}_output_indices"), errors):
+                    for idx, e in zip(indices, error):
+                        error_sums[idx] += e
+                        error_counts[idx] += 1
+
+                nonzero_mask = error_counts > 0
+                error_series[nonzero_mask] = error_sums[nonzero_mask] / error_counts[nonzero_mask]
+
+                input_windows = np.flip(np.arange(WINDOW_PAST - 1, len(error_series) - WINDOW_PRESENT + 1)[:, None] - np.arange(WINDOW_PAST), axis=1)
+                output_windows = (np.arange(WINDOW_PAST, len(error_series) - WINDOW_PRESENT + 1)[:, None] + np.arange(WINDOW_PRESENT))
+
+                input_windows = input_windows[:(len(input_windows) // BATCH_SIZE) * BATCH_SIZE]
+                output_windows = output_windows[:len(input_windows)]
+
+                x = error_series[input_windows][:, :, None]
+                y = np.max(error_series[output_windows], axis=1, keepdims=True)
+
+                chunk.append((x, y))
+
+            threshold_networks_fit_data.append(chunk)
+
+        for index, threshold_network in enumerate(self.threshold_networks):
+
+            chunk = threshold_networks_fit_data[index]
+            (x_train, y_train), (x_val, y_val) = chunk
+
+            threshold_network.fit(
+                x=x_train,
+                y=y_train,
+
+                validation_data=(x_val, y_val),
+
+                batch_size=BATCH_SIZE,
+                epochs=T_EPOCHS,
+
+                verbose=config.VERBOSE
+            )
+
     def eval_threshold_network(self, threshold_networks: list[ThresholdNetworkDAICS], clear_cache: bool = False) -> float:
 
         if clear_cache or not len(self.threshold_networks_eval_data):
@@ -402,6 +466,67 @@ class Client:
 
         return self.threshold_score
 
+    def eval_threshold_network(self) -> float:
+
+        threshold_networks_eval_data = []
+
+        for index, wide_deep_network in enumerate(self.wide_deep_networks):
+
+            predicted = wide_deep_network.predict(
+                x=self.df_test[self.test_input_indices],
+
+                batch_size=BATCH_SIZE,
+
+                verbose=config.VERBOSE
+            )
+
+            ground_truth = self.df_test[self.test_output_indices][:, :, SENSOR_GROUPS_INDICES[index]]
+            errors = np.mean((predicted - ground_truth) ** 2, axis=-1)
+
+            error_series = np.zeros(len(self.df_test))
+            error_sums = np.zeros_like(error_series)
+            error_counts = np.zeros_like(error_series)
+
+            for indices, error in zip(self.test_output_indices, errors):
+                for idx, e in zip(indices, error):
+                    error_sums[idx] += e
+                    error_counts[idx] += 1
+
+            nonzero_mask = error_counts > 0
+            error_series[nonzero_mask] = error_sums[nonzero_mask] / error_counts[nonzero_mask]
+
+            input_windows = np.flip((np.arange(WINDOW_PAST - 1, len(error_series) - WINDOW_PRESENT + 1)[:, None] - np.arange(WINDOW_PAST)), axis=1)
+            output_windows = (np.arange(WINDOW_PAST, len(error_series) - WINDOW_PRESENT + 1)[:, None] + np.arange(WINDOW_PRESENT))
+
+            input_windows = input_windows[:(len(input_windows) // BATCH_SIZE) * BATCH_SIZE]
+            output_windows = output_windows[:len(input_windows)]
+
+            x = error_series[input_windows][:, :, None]
+            y = np.max(error_series[output_windows], axis=1, keepdims=True)
+
+            threshold_networks_eval_data.append((x, y))
+
+        scores = []
+
+        for index, model in enumerate(self.threshold_networks):
+
+            x_test, y_test = self.threshold_networks_eval_data[index]
+
+            score = model.evaluate(
+                x=x_test,
+                y=y_test,
+
+                batch_size=BATCH_SIZE,
+
+                verbose=config.VERBOSE
+            )
+
+            scores.append(score)
+
+        self.threshold_score = -np.mean(scores)
+
+        return self.threshold_score
+    
     def set_threshold_networks(self, threshold_networks: list[ThresholdNetworkDAICS]):
 
         self.threshold_networks = clone_threshold_networks(

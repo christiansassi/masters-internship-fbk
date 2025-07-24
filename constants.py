@@ -42,12 +42,11 @@ TRAIN_STEP: int = 1
 VAL_STEP: int = 1
 TEST_STEP: int = 1
 BATCH_SIZE: int = 32
+T_EPOCHS: int = 10
 
 KERNEL_SIZE = 1
-
 LEARNING_RATE: float = 0.01
 MOMENTUM: float = 0.9
-
 LOSS: str = "mse"
 
 W_ANOMALY: int = 30
