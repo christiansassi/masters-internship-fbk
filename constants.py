@@ -86,15 +86,17 @@ OUTPUT_FILE: str = join(OUTPUT_DIR, "SWaT_Dataset.h5")
 MODELS: str = "models"
 MODELS_TMP: str = join(MODELS, "tmp", str(int(time())))
 
-WIDE_DEEP_NETWORKS: str = join(MODELS, "wide_deep_networks")
-WIDE_DEEP_NETWORKS_TMP: str = join(MODELS_TMP, "wide_deep_networks")
-WIDE_DEEP_NETWORKS_BASENAME: str = "wide_deep_network"
+WIDE_DEEP_NETWORKS_BASENAME: str = "wide_deep_networks"
+WIDE_DEEP_NETWORK_BASENAME: str = "wide_deep_network"
 WIDE_DEEP_NETWORKS_LABEL: str = "wide_deep"
+WIDE_DEEP_NETWORKS: str = join(MODELS, WIDE_DEEP_NETWORKS_BASENAME)
+WIDE_DEEP_NETWORKS_TMP: str = join(MODELS_TMP, WIDE_DEEP_NETWORKS_BASENAME)
 
-THRESHOLD_NETWORKS: str = join(MODELS, "threshold_networks")
-THRESHOLD_NETWORKS_TMP: str = join(MODELS_TMP, "threshold_networks")
-THRESHOLD_NETWORKS_BASENAME: str = "threshold_network"
+THRESHOLD_NETWORKS_BASENAME: str = "threshold_networks"
+THRESHOLD_NETWORK_BASENAME: str = "threshold_network"
 THRESHOLD_NETWORKS_LABEL: str = "threshold"
+THRESHOLD_NETWORKS: str = join(MODELS, THRESHOLD_NETWORKS_BASENAME)
+THRESHOLD_NETWORKS_TMP: str = join(MODELS_TMP, THRESHOLD_NETWORKS_BASENAME)
 
 CACHE: str = "cache"
 CACHE_CLIENTS: str = join(CACHE, "clients")

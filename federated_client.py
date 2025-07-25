@@ -1,3 +1,4 @@
+from typing import Iterator
 from constants import (
     OUTPUT_FILE,
     SENSOR_GROUPS_INDICES,
@@ -17,6 +18,7 @@ from constants import (
     MED_FILTER_LAG,
     CACHE_CLIENTS,
     T_EPOCHS,
+    THRESHOLD_NETWORK_BASENAME,
     THRESHOLD_NETWORKS_BASENAME
 )
 
@@ -39,11 +41,12 @@ import numpy as np
 from uuid import uuid4
 
 import tensorflow as tf
+from tensorflow.keras.models import load_model # type: ignore
 
 import scipy.signal
 
 from os import makedirs, listdir
-from os.path import join
+from os.path import join, exists
 
 import pickle
 
@@ -586,38 +589,38 @@ class Client:
     def simulate(self):
 
         threshold_base = self.calcuate_threshold_base()
+        
+        if not len(self.wide_deep_networks_real_errors[0]):
 
-        wide_deep_networks_real_errors = [[] for _ in SENSOR_GROUPS_INDICES]
+            self.wide_deep_networks_real_errors = [[] for _ in SENSOR_GROUPS_INDICES]
 
-        for index, wide_deep_network in enumerate(self.wide_deep_networks):
+            for index, wide_deep_network in enumerate(self.wide_deep_networks):
 
-            predicted_sensors = wide_deep_network.predict(
-                x=self.wide_deep_real_data[index],
+                predicted_sensors = wide_deep_network.predict(
+                    x=self.wide_deep_real_data[index],
 
-                batch_size=BATCH_SIZE,
+                    batch_size=BATCH_SIZE,
 
-                verbose=config.VERBOSE
-            )
+                    verbose=config.VERBOSE
+                )
 
-            real_sensors = self.df_real[self.real_output_indices][:, :, SENSOR_GROUPS_INDICES[index]]
+                real_sensors = self.df_real[self.real_output_indices][:, :, SENSOR_GROUPS_INDICES[index]]
 
-            errors = np.mean((predicted_sensors - real_sensors) ** 2, axis=-1)
+                errors = np.mean((predicted_sensors - real_sensors) ** 2, axis=-1)
 
-            error_series = np.zeros(len(self.df_real))
-            error_sums = np.zeros_like(error_series)
-            error_counts = np.zeros_like(error_series)
+                error_series = np.zeros(len(self.df_real))
+                error_sums = np.zeros_like(error_series)
+                error_counts = np.zeros_like(error_series)
 
-            for indices, error in zip(self.real_output_indices, errors):
-                for idx, e in zip(indices, error):
-                    error_sums[idx] += e
-                    error_counts[idx] += 1
+                for indices, error in zip(self.real_output_indices, errors):
+                    for idx, e in zip(indices, error):
+                        error_sums[idx] += e
+                        error_counts[idx] += 1
 
-            nonzero_mask = error_counts > 0
-            error_series[nonzero_mask] = error_sums[nonzero_mask] / error_counts[nonzero_mask]
-            
-            wide_deep_networks_real_errors[index] = error_series
-
-        self.wide_deep_networks_real_errors = wide_deep_networks_real_errors
+                nonzero_mask = error_counts > 0
+                error_series[nonzero_mask] = error_sums[nonzero_mask] / error_counts[nonzero_mask]
+                
+                self.wide_deep_networks_real_errors[index] = error_series
 
         # for input_window, output_window in zip(self.real_input_indices, self.real_output_indices):
 
@@ -754,9 +757,7 @@ def save_clients(clients: list[Client]):
         client.set_wide_deep_networks(wide_deep_networks=wide_deep_networks)
         client.set_threshold_networks(threshold_networks=threshold_networks)
 
-def load_clients() -> list[Client]:
-
-    clients = []
+def load_clients() -> Iterator[Client]:
 
     wide_deep_networks = load_wide_deep_networks()
     threshold_networks = load_threshold_networks()
@@ -771,11 +772,22 @@ def load_clients() -> list[Client]:
         client.id = client_id
 
         client.set_wide_deep_networks(wide_deep_networks=wide_deep_networks)
-        client.set_threshold_networks(threshold_networks=threshold_networks)
 
-        clients.append(client)
-    
-    return clients
+        if exists(join(client_dir, THRESHOLD_NETWORKS_BASENAME)):
+
+            _threshold_networks = []
+
+            for threshold_network in listdir(join(client_dir, THRESHOLD_NETWORKS_BASENAME)):
+                threshold_network = load_model(join(client_dir, THRESHOLD_NETWORKS_BASENAME, threshold_network), custom_objects={"ThresholdNetworkDAICS": ThresholdNetworkDAICS})
+
+                _threshold_networks.append(threshold_network)
+            
+            client.set_threshold_networks(threshold_networks=_threshold_networks)
+
+        else:
+            client.set_threshold_networks(threshold_networks=threshold_networks)
+
+        yield client
 
 def train_threshold_networks_locally(clients: list[Client]):
 
@@ -796,6 +808,6 @@ def train_threshold_networks_locally(clients: list[Client]):
         makedirs(client_dir, exist_ok=True)
 
         for index, threshold_network in enumerate(client.threshold_networks):
-            threshold_network.save(join(client_dir, "threshold_networks", f"{THRESHOLD_NETWORKS_BASENAME}_{index + 1}"), save_format="tf")
+            threshold_network.save(join(client_dir, THRESHOLD_NETWORKS_BASENAME, f"{THRESHOLD_NETWORK_BASENAME}_{index + 1}"), save_format="tf")
 
     scores
