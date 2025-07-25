@@ -47,7 +47,7 @@ if __name__ == "__main__":
         train_threshold_networks_locally(clients=clients)
     
     # Simulate deploy
-    clients = load_clients()
+    # clients = load_clients()
 
     for client in clients:
         client.simulate()
