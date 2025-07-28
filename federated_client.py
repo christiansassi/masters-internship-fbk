@@ -598,8 +598,9 @@ class Client:
     def simulate(self):
 
         def compute_metrics(tp, fp, fn):
-            if tp == 0:
-                return 0.0, 0.0, 0.0
+
+            if tp + fp + fn == 0:
+                return float("nan"), float("nan"), float("nan")
 
             precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
             recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
@@ -633,6 +634,7 @@ class Client:
                 self.wide_deep_networks_real_errors[index] = error_series
 
         threshold_base = self.calcuate_threshold_base()
+
         run = config.WandbConfig.init_run(f"Simulation {str(self.id)}")
 
         true_positives = 0
@@ -807,7 +809,6 @@ class Client:
             f.write(json.dumps(result, indent=4))
 
         return result
-
 
 def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], threshold_networks: list[ThresholdNetworkDAICS] = []) -> list[Client]:
 
