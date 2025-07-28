@@ -596,26 +596,28 @@ class Client:
         return t_base
 
     def simulate(self):
-        
-        # Calculate all the errors of the wide deep networks.
-        # This step can be performed in advance (on all the dataset) since
-        # the wide deep networks are not supposed to be retrained or updated during the deployment
-        if not len(self.wide_deep_networks_real_errors[0]):
 
+        def compute_metrics(tp, fp, fn):
+            if tp == 0:
+                return 0.0, 0.0, 0.0
+
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+
+            return precision, recall, f1
+
+        if not len(self.wide_deep_networks_real_errors[0]):
             self.wide_deep_networks_real_errors = [[] for _ in SENSOR_GROUPS_INDICES]
 
             for index, wide_deep_network in enumerate(self.wide_deep_networks):
-
                 predicted_sensors = wide_deep_network.predict(
                     x=self.wide_deep_real_data[index],
-
                     batch_size=BATCH_SIZE,
-
                     verbose=config.VERBOSE
                 )
 
                 real_sensors = self.df_real[self.real_output_indices][:, :, SENSOR_GROUPS_INDICES[index]]
-
                 errors = np.mean((predicted_sensors - real_sensors) ** 2, axis=-1)
 
                 error_series = np.zeros(len(self.df_real))
@@ -628,33 +630,24 @@ class Client:
 
                 nonzero_mask = error_counts > 0
                 error_series[nonzero_mask] = error_sums[nonzero_mask] / error_counts[nonzero_mask]
-                
                 self.wide_deep_networks_real_errors[index] = error_series
 
-        # Calculate the threshold base
         threshold_base = self.calcuate_threshold_base()
-
         run = config.WandbConfig.init_run(f"Simulation {str(self.id)}")
 
         true_positives = 0
         false_positives = 0
-
         true_negatives = 0
         false_negatives = 0
-
-        precision = 1
-        recall = 1
-        f1_score = 1
 
         total_attacks = np.sum(np.diff(np.concatenate(([0], self.all_labels, [0]))) == 1)
         detected_attacks = 0
 
-        start = 0
+        start = 1270
         start = max(1, start - WINDOW_PAST) - 1
 
         anomalies_counter = 0
         anomaly = False
-
         suspected = []
 
         index = start
@@ -662,56 +655,42 @@ class Client:
         total_iterations = len(self.wide_deep_networks_real_errors[0])
 
         with Progress() as progress:
-    
+
             task = progress.add_task(f"Simulating {str(self.id)}", total=total_iterations)
 
-            while index + WINDOW_PAST < len(self.wide_deep_networks_real_errors[0]):
-                
-                start = time()
+            while index + WINDOW_PAST < total_iterations:
 
+                start_time = time()
                 index = index + 1
 
                 anomalies = []
 
                 for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
-
                     x = errors[index:index+WINDOW_PAST]
                     y = errors[index+WINDOW_PAST]
 
                     threshold = threshold_network.predict(
                         x=np.expand_dims(x, axis=(0, 2)),
-
                         batch_size=1,
-
                         verbose=config.VERBOSE
                     )[0].item()
 
                     threshold = threshold + threshold_base
-
                     anomalies.append(y > threshold)
-                
+
                 if any(anomalies):
 
                     if not anomaly:
-
-                        # Increase the anomalies counter
                         anomalies_counter = anomalies_counter + 1
+                        suspected.append(index + WINDOW_PAST)
 
-                        suspected.append(index+WINDOW_PAST)
-                        
                         if anomalies_counter >= W_ANOMALY:
-
-                            # Trigger anomaly alarm
                             anomaly = True
                             detected_attacks = detected_attacks + 1
 
-                            # Simulate operator check
                             if not any(self.all_labels[suspected]):
-                                
-                                # False positives
                                 false_positives = false_positives + 1
 
-                                # False positive: fit the threshold networks with the new data
                                 for i in suspected:
                                     for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
 
@@ -721,21 +700,13 @@ class Client:
                                         threshold_network.fit(
                                             x=np.expand_dims(x, axis=(0, 2)),
                                             y=np.array([[y]], dtype=np.float32),
-
                                             batch_size=1,
-
                                             verbose=config.VERBOSE
                                         )
-                            
                             else:
-                                
-                                # True positives
                                 true_positives = true_positives + 1
-
-                                # Jump at the end of the attack
-                                prev = index+WINDOW_PAST
-
-                                remaining = self.all_labels[index+WINDOW_PAST:]
+                                prev = index + WINDOW_PAST
+                                remaining = self.all_labels[index + WINDOW_PAST:]
                                 end_idx = np.argmax(remaining == 0)
 
                                 if end_idx == 0 and remaining[0] != 0:
@@ -743,38 +714,33 @@ class Client:
                                 else:
                                     index = index + WINDOW_PAST + end_idx + W_GRACE
 
-                                current = min(index + WINDOW_PAST, len(self.wide_deep_networks_real_errors[0]))
-
-                                anomaly = False
-                                anomalies_counter = 0
-
-                                precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) != 0 else 1
-                                recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) != 0 else 1
-                                f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) != 0 else 1
+                                current = min(index + WINDOW_PAST, total_iterations)
+                                precision, recall, f1_score = compute_metrics(true_positives, false_positives, false_negatives)
 
                                 for timestep in range(prev, current):
                                     run.log({
-                                        "timestep": timestep, 
-                                        "precision": precision, 
+                                        "timestep": timestep,
+                                        "precision": precision,
                                         "recall": recall,
                                         "f1_score": f1_score,
                                         "detected_attacks": detected_attacks,
-                                        "duration": time() - start
+                                        "true_positives": true_positives,
+                                        "false_positives": false_positives,
+                                        "false_negatives": false_negatives,
+                                        "true_negatives": true_negatives,
+                                        "duration": time() - start_time
                                     })
 
                             suspected = []
-                
                 else:
-                    
-                    # Check if it's a true / false negative
-                    if self.all_labels[index+WINDOW_PAST]:
+
+                    if self.all_labels[index + WINDOW_PAST]:
                         false_negatives = false_negatives + 1
                     else:
                         true_negatives = true_negatives + 1
 
                     anomalies_counter = max(0, anomalies_counter - 1)
 
-                    # Fit the threshold networks with new benign data
                     for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
 
                         x = errors[index:index+WINDOW_PAST]
@@ -789,23 +755,25 @@ class Client:
                             verbose=config.VERBOSE
                         )
 
-                precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) != 0 else 1
-                recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) != 0 else 1
-                f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) != 0 else 1
+                precision, recall, f1_score = compute_metrics(true_positives, false_positives, false_negatives)
 
                 run.log({
-                    "timestep": min(index + WINDOW_PAST, len(self.wide_deep_networks_real_errors[0])),
-                    "precision": precision, 
+                    "timestep": index + WINDOW_PAST,
+                    "precision": precision,
                     "recall": recall,
                     "f1_score": f1_score,
                     "detected_attacks": detected_attacks,
-                    "duration": time() - start
+                    "true_positives": true_positives,
+                    "false_positives": false_positives,
+                    "false_negatives": false_negatives,
+                    "true_negatives": true_negatives,
+                    "duration": time() - start_time
                 })
 
                 progress.update(
-                    task, 
-                    completed=min(index + WINDOW_PAST, len(self.wide_deep_networks_real_errors[0])),
-                    description=f"Simulating {str(self.id)} {min(index + WINDOW_PAST, len(self.wide_deep_networks_real_errors[0]))} / {len(self.wide_deep_networks_real_errors[0])}"
+                    task,
+                    completed=index + WINDOW_PAST,
+                    description=f"Simulating {self.id} {index + WINDOW_PAST} / {total_iterations}"
                 )
 
         run.summary["precision"] = precision
@@ -813,7 +781,10 @@ class Client:
         run.summary["f1_score"] = f1_score
         run.summary["detected_attacks"] = detected_attacks
         run.summary["total_attacks"] = total_attacks
-
+        run.summary["true_positives"] = true_positives
+        run.summary["false_positives"] = false_positives
+        run.summary["false_negatives"] = false_negatives
+        run.summary["true_negatives"] = true_negatives
         run.finish()
 
         result = {
@@ -823,6 +794,12 @@ class Client:
             "attacks": {
                 "detected": detected_attacks,
                 "total": total_attacks
+            },
+            "stats": {
+                "true_positives": true_positives,
+                "false_positives": false_positives,
+                "false_negatives": false_negatives,
+                "true_negatives": true_negatives
             }
         }
 
@@ -830,6 +807,7 @@ class Client:
             f.write(json.dumps(result, indent=4))
 
         return result
+
 
 def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], threshold_networks: list[ThresholdNetworkDAICS] = []) -> list[Client]:
 
