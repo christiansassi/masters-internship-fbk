@@ -48,4 +48,5 @@ if __name__ == "__main__":
     
     # Simulate deploy
     for client in load_clients():
+        print("")
         client.simulate()

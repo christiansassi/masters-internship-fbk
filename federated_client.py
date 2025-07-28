@@ -54,6 +54,10 @@ import pickle
 
 import matplotlib.pyplot as plt
 
+from rich.progress import Progress
+
+from time import time
+
 class Client:
 
     def __init__(
@@ -654,138 +658,154 @@ class Client:
 
         index = start
 
-        while index + WINDOW_PAST < len(self.wide_deep_networks_real_errors[0]):
+        total_iterations = len(self.wide_deep_networks_real_errors[0])
 
-            index = index + 1
+        with Progress() as progress:
+    
+            task = progress.add_task(f"Simulating {str(self.id)}", total=total_iterations)
 
-            anomalies = []
-
-            for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
-
-                x = errors[index:index+WINDOW_PAST]
-                y = errors[index+WINDOW_PAST]
-
-                threshold = threshold_network.predict(
-                    x=np.expand_dims(x, axis=(0, 2)),
-
-                    batch_size=1,
-
-                    verbose=config.VERBOSE
-                )[0].item()
-
-                threshold = threshold + threshold_base
-
-                anomalies.append(y > threshold)
-            
-            if any(anomalies):
-
-                if not anomaly:
-
-                    # Increase the anomalies counter
-                    anomalies_counter = anomalies_counter + 1
-
-                    suspected.append(index+WINDOW_PAST)
-                    
-                    if anomalies_counter >= W_ANOMALY:
-
-                        # Trigger anomaly alarm
-                        anomaly = True
-                        detected_attacks = detected_attacks + 1
-
-                        # Simulate operator check
-                        if not any(self.all_labels[suspected]):
-                            
-                            # False positives
-                            false_positives = false_positives + 1
-
-                            # False positive: fit the threshold networks with the new data
-                            for i in suspected:
-                                for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
-
-                                    x = errors[i:i+WINDOW_PAST]
-                                    y = errors[i+WINDOW_PAST]
-
-                                    threshold_network.fit(
-                                        x=np.expand_dims(x, axis=(0, 2)),
-                                        y=np.array([[y]], dtype=np.float32),
-
-                                        batch_size=1,
-
-                                        verbose=config.VERBOSE
-                                    )
-                        
-                        else:
-                            
-                            # True positives
-                            true_positives = true_positives + 1
-
-                            # Jump at the end of the attack
-                            prev = index+WINDOW_PAST
-
-                            remaining = self.all_labels[index+WINDOW_PAST:]
-                            end_idx = np.argmax(remaining == 0)
-
-                            if end_idx == 0 and remaining[0] != 0:
-                                index = len(self.all_labels)
-                            else:
-                                index = index + WINDOW_PAST + end_idx + W_GRACE
-
-                            current = min(index + WINDOW_PAST, len(self.wide_deep_networks_real_errors[0]))
-                                
-                            anomaly = False
-                            anomalies_counter = 0
-
-                            precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) != 0 else 1
-                            recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) != 0 else 1
-                            f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) != 0 else 1
-
-                            for timestep in range(prev, current):
-                                run.log({
-                                    "timestep": timestep, 
-                                    "precision": precision, 
-                                    "recall": recall,
-                                    "f1_score": f1_score,
-                                    "detected_attacks": detected_attacks
-                                })
-
-                        suspected = []
-            
-            else:
+            while index + WINDOW_PAST < len(self.wide_deep_networks_real_errors[0]):
                 
-                # Check if it's a true / false negative
-                if self.all_labels[index+WINDOW_PAST]:
-                    false_negatives = false_negatives + 1
-                else:
-                    true_negatives = true_negatives + 1
+                start = time()
 
-                anomalies_counter = max(0, anomalies_counter - 1)
+                index = index + 1
 
-                # Fit the threshold networks with new benign data
+                anomalies = []
+
                 for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
 
                     x = errors[index:index+WINDOW_PAST]
                     y = errors[index+WINDOW_PAST]
 
-                    threshold_network.fit(
+                    threshold = threshold_network.predict(
                         x=np.expand_dims(x, axis=(0, 2)),
-                        y=np.array([[y]], dtype=np.float32),
 
                         batch_size=1,
 
                         verbose=config.VERBOSE
-                    )
+                    )[0].item()
 
-            precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) != 0 else 1
-            recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) != 0 else 1
-            f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) != 0 else 1
+                    threshold = threshold + threshold_base
 
-            run.log({
-                "timestep": index+WINDOW_PAST, 
-                "precision": precision, 
-                "recall": recall,
-                "f1_score": f1_score,
-                "detected_attacks": detected_attacks
-            })
+                    anomalies.append(y > threshold)
+                
+                if any(anomalies):
+
+                    if not anomaly:
+
+                        # Increase the anomalies counter
+                        anomalies_counter = anomalies_counter + 1
+
+                        suspected.append(index+WINDOW_PAST)
+                        
+                        if anomalies_counter >= W_ANOMALY:
+
+                            # Trigger anomaly alarm
+                            anomaly = True
+                            detected_attacks = detected_attacks + 1
+
+                            # Simulate operator check
+                            if not any(self.all_labels[suspected]):
+                                
+                                # False positives
+                                false_positives = false_positives + 1
+
+                                # False positive: fit the threshold networks with the new data
+                                for i in suspected:
+                                    for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
+
+                                        x = errors[i:i+WINDOW_PAST]
+                                        y = errors[i+WINDOW_PAST]
+
+                                        threshold_network.fit(
+                                            x=np.expand_dims(x, axis=(0, 2)),
+                                            y=np.array([[y]], dtype=np.float32),
+
+                                            batch_size=1,
+
+                                            verbose=config.VERBOSE
+                                        )
+                            
+                            else:
+                                
+                                # True positives
+                                true_positives = true_positives + 1
+
+                                # Jump at the end of the attack
+                                prev = index+WINDOW_PAST
+
+                                remaining = self.all_labels[index+WINDOW_PAST:]
+                                end_idx = np.argmax(remaining == 0)
+
+                                if end_idx == 0 and remaining[0] != 0:
+                                    index = len(self.all_labels)
+                                else:
+                                    index = index + WINDOW_PAST + end_idx + W_GRACE
+
+                                current = min(index + WINDOW_PAST, len(self.wide_deep_networks_real_errors[0]))
+
+                                anomaly = False
+                                anomalies_counter = 0
+
+                                precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) != 0 else 1
+                                recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) != 0 else 1
+                                f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) != 0 else 1
+
+                                for timestep in range(prev, current):
+                                    run.log({
+                                        "timestep": timestep, 
+                                        "precision": precision, 
+                                        "recall": recall,
+                                        "f1_score": f1_score,
+                                        "detected_attacks": detected_attacks,
+                                        "duration": time() - start
+                                    })
+
+                            suspected = []
+                
+                else:
+                    
+                    # Check if it's a true / false negative
+                    if self.all_labels[index+WINDOW_PAST]:
+                        false_negatives = false_negatives + 1
+                    else:
+                        true_negatives = true_negatives + 1
+
+                    anomalies_counter = max(0, anomalies_counter - 1)
+
+                    # Fit the threshold networks with new benign data
+                    for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
+
+                        x = errors[index:index+WINDOW_PAST]
+                        y = errors[index+WINDOW_PAST]
+
+                        threshold_network.fit(
+                            x=np.expand_dims(x, axis=(0, 2)),
+                            y=np.array([[y]], dtype=np.float32),
+
+                            batch_size=1,
+
+                            verbose=config.VERBOSE
+                        )
+
+                precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) != 0 else 1
+                recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) != 0 else 1
+                f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) != 0 else 1
+
+                run.log({
+                    "timestep": min(index + WINDOW_PAST, len(self.wide_deep_networks_real_errors[0])),
+                    "precision": precision, 
+                    "recall": recall,
+                    "f1_score": f1_score,
+                    "detected_attacks": detected_attacks,
+                    "duration": time() - start
+                })
+
+                progress.update(
+                    task, 
+                    completed=min(index + WINDOW_PAST, len(self.wide_deep_networks_real_errors[0])),
+                    description=f"Simulating {str(self.id)} {min(index + WINDOW_PAST, len(self.wide_deep_networks_real_errors[0]))} / {len(self.wide_deep_networks_real_errors[0])}"
+                )
 
         run.summary["precision"] = precision
         run.summary["recall"] = recall
