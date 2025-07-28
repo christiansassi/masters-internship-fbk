@@ -645,7 +645,7 @@ class Client:
         total_attacks = np.sum(np.diff(np.concatenate(([0], self.all_labels, [0]))) == 1)
         detected_attacks = 0
 
-        start = 1270
+        start = 0
         start = max(1, start - WINDOW_PAST) - 1
 
         anomalies_counter = 0
