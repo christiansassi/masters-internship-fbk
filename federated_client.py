@@ -57,6 +57,7 @@ import matplotlib.pyplot as plt
 from rich.progress import Progress
 
 from time import time
+import json
 
 class Client:
 
@@ -648,7 +649,7 @@ class Client:
         total_attacks = np.sum(np.diff(np.concatenate(([0], self.all_labels, [0]))) == 1)
         detected_attacks = 0
 
-        start = 0
+        start = 1700
         start = max(1, start - WINDOW_PAST) - 1
 
         anomalies_counter = 0
@@ -815,7 +816,7 @@ class Client:
 
         run.finish()
 
-        return {
+        result = {
             "precision": precision,
             "recall": recall,
             "f1_score": f1_score,
@@ -824,6 +825,11 @@ class Client:
                 "total": total_attacks
             }
         }
+
+        with open(join(CACHE_CLIENTS, self.id, "simulation.json"), "w+") as f:
+            f.write(json.dumps(result, indent=4))
+
+        return result
 
 def generate_iid_clients(wide_deep_networks: list[WideDeepNetworkDAICS] = [], threshold_networks: list[ThresholdNetworkDAICS] = []) -> list[Client]:
 
