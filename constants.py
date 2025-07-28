@@ -56,7 +56,7 @@ W_ANOMALY: int = 30
 # for the system to stabilize (after the attack). Simpler attacks, such as those that effect flow rates,
 # require less time to stabilize. Also, some attacks do not take effect immediately (attack impact is seen after the attack's end).
 # Based on that, attack impact is considered as part of the attack, and we avoid human intervention on the period just after the attack
-W_GRACE: int = 0
+W_GRACE: int = 60
 
 MED_FILTER_LAG: int = 59
 
