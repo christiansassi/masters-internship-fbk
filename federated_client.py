@@ -730,6 +730,7 @@ class Client:
                                         "false_positives": false_positives,
                                         "false_negatives": false_negatives,
                                         "true_negatives": true_negatives,
+                                        "w_anomaly": anomalies_counter,
                                         "duration": time() - start_time
                                     })
 
@@ -769,6 +770,7 @@ class Client:
                     "false_positives": false_positives,
                     "false_negatives": false_negatives,
                     "true_negatives": true_negatives,
+                    "w_anomaly": anomalies_counter,
                     "duration": time() - start_time
                 })
 
