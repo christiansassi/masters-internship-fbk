@@ -744,19 +744,19 @@ class Client:
 
                     anomalies_counter = max(0, anomalies_counter - 1)
 
-                    for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
+                    # for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
 
-                        x = errors[index:index+WINDOW_PAST]
-                        y = errors[index+WINDOW_PAST]
+                    #     x = errors[index:index+WINDOW_PAST]
+                    #     y = errors[index+WINDOW_PAST]
 
-                        threshold_network.fit(
-                            x=np.expand_dims(x, axis=(0, 2)),
-                            y=np.array([[y]], dtype=np.float32),
+                    #     threshold_network.fit(
+                    #         x=np.expand_dims(x, axis=(0, 2)),
+                    #         y=np.array([[y]], dtype=np.float32),
 
-                            batch_size=1,
+                    #         batch_size=1,
 
-                            verbose=config.VERBOSE
-                        )
+                    #         verbose=config.VERBOSE
+                    #     )
 
                 precision, recall, f1_score = compute_metrics(true_positives, false_positives, false_negatives)
 
