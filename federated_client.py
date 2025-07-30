@@ -648,7 +648,7 @@ class Client:
         detected_attacks = 0
 
         start = 0
-        start = max(1, start - WINDOW_PAST) - 1
+        start = max(0, start - WINDOW_PAST) - 1
 
         anomaly = False
         suspected = []
@@ -744,7 +744,7 @@ class Client:
                                     "detected_attacks": detected_attacks,
                                     "true_positives": sum(detected_attacks_mask),
                                     "false_positives": false_positives,
-                                    "false_negatives": len(detected_attacks_mask) - sum(detected_attacks_mask),
+                                    "false_negatives": len([y for y in detected_attacks_mask[:len([x for x in attack_ends if x <= index])] if not y]),
                                     "true_negatives": true_negatives,
                                     "w_anomaly": len(suspected),
                                     "duration": time() - start_time
@@ -764,7 +764,7 @@ class Client:
                             "detected_attacks": detected_attacks,
                             "true_positives": sum(detected_attacks_mask),
                             "false_positives": false_positives,
-                            "false_negatives": len(detected_attacks_mask) - sum(detected_attacks_mask),
+                            "false_negatives": len([y for y in detected_attacks_mask[:len([x for x in attack_ends if x <= index])] if not y]),
                             "true_negatives": true_negatives,
                             "w_anomaly": len(suspected),
                             "duration": time() - start_time
@@ -808,7 +808,7 @@ class Client:
                 "detected_attacks": detected_attacks,
                 "true_positives": sum(detected_attacks_mask),
                 "false_positives": false_positives,
-                "false_negatives": sum(1 for d in detected_attacks_mask if not d),
+                "false_negatives": len([y for y in detected_attacks_mask[:len([x for x in attack_ends if x <= index])] if not y]),
                 "true_negatives": true_negatives,
                 "w_anomaly": len(suspected),
                 "duration": time() - start_time

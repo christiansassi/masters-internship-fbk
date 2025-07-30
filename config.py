@@ -21,7 +21,7 @@ from types import SimpleNamespace
 
 VERBOSE: int = 0
 GPU: bool = True
-WANDB: bool = True
+WANDB: bool = False
 
 if GPU:
     for gpu in tf.config.experimental.list_physical_devices("GPU"):
