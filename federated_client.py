@@ -731,7 +731,7 @@ class Client:
                             "detected_attacks": detected_attacks,
                             "true_positives": sum(detected_attacks_mask),
                             "false_positives": false_positives,
-                            "false_negatives": sum(1 for d in detected_attacks_mask if not d),
+                            "false_negatives": len(detected_attacks_mask) - sum(detected_attacks_mask),
                             "true_negatives": true_negatives,
                             "w_anomaly": len(suspected),
                             "duration": time() - start_time
@@ -781,15 +781,6 @@ class Client:
                 "duration": time() - start_time
             })
 
-        run.summary["precision"] = precision
-        run.summary["recall"] = recall
-        run.summary["f1_score"] = f1_score
-        run.summary["detected_attacks"] = detected_attacks
-        run.summary["total_attacks"] = total_attacks
-        run.summary["true_positives"] = sum(detected_attacks_mask)
-        run.summary["false_positives"] = false_positives
-        run.summary["false_negatives"] = sum(1 for d in detected_attacks_mask if not d)
-        run.summary["true_negatives"] = true_negatives
         run.finish()
 
         result = {
