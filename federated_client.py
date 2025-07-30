@@ -649,7 +649,7 @@ class Client:
 
         detected_attacks = 0
 
-        start = 0
+        start = 1740
         start = max(1, start - WINDOW_PAST) - 1
 
         anomaly = False
@@ -693,9 +693,9 @@ class Client:
 
                         # Check if this overlaps any attack
                         overlap_found = False
-                        for i, (start_idx, end_idx) in enumerate(attack_intervals):
+                        for i, (start_index, end_index) in enumerate(attack_intervals):
                             if not detected_attacks_mask[i]:
-                                if any((start_idx <= idx + WINDOW_PAST < end_idx) for idx in suspected):
+                                if any((start_index <= idx + WINDOW_PAST < end_index) for idx in suspected):
                                     detected_attacks_mask[i] = True
                                     overlap_found = True
                                     break
@@ -716,6 +716,39 @@ class Client:
                             #             batch_size=1,
                             #             verbose=config.VERBOSE
                             #         )
+                        
+                        else:
+                            prev = index + WINDOW_PAST
+                            remaining = self.all_labels[index + WINDOW_PAST:]
+                            end_index = np.argmax(remaining == 0)
+
+                            if end_index == 0 and remaining[0] != 0:
+                                index = len(self.all_labels)
+                            else:
+                                index = index + WINDOW_PAST + end_index + W_GRACE
+
+                            current = min(index + WINDOW_PAST, total_iterations)
+
+                            precision, recall, f1_score = compute_metrics(
+                                sum(detected_attacks_mask),
+                                false_positives,
+                                sum(1 for d in detected_attacks_mask if not d)
+                            )
+
+                            for timestep in range(prev, current):
+                                run.log({
+                                    "timestep": timestep,
+                                    "precision": precision,
+                                    "recall": recall,
+                                    "f1_score": f1_score,
+                                    "detected_attacks": detected_attacks,
+                                    "true_positives": sum(detected_attacks_mask),
+                                    "false_positives": false_positives,
+                                    "false_negatives": len(detected_attacks_mask) - sum(detected_attacks_mask),
+                                    "true_negatives": true_negatives,
+                                    "w_anomaly": len(suspected),
+                                    "duration": time() - start_time
+                                })
 
                         precision, recall, f1_score = compute_metrics(
                             sum(detected_attacks_mask),
