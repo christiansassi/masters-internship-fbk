@@ -54,8 +54,6 @@ import pickle
 
 import matplotlib.pyplot as plt
 
-from rich.progress import Progress
-
 from time import time
 import json
 
@@ -649,7 +647,7 @@ class Client:
 
         detected_attacks = 0
 
-        start = 1740
+        start = 0
         start = max(1, start - WINDOW_PAST) - 1
 
         anomaly = False
@@ -665,7 +663,7 @@ class Client:
 
             anomalies = []
 
-            print(f"Timestep {index+WINDOW_PAST}", end="\r")
+            print(f"Timestep {index+WINDOW_PAST} / {total_iterations}", end="\r")
 
             for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
                 x = errors[index:index+WINDOW_PAST]
