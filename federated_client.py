@@ -700,7 +700,8 @@ class Client:
                                     overlap_found = True
                                     break
 
-                        if not overlap_found:
+                        if not overlap_found: #? False positive
+
                             false_positives = false_positives + 1
 
                             #? Call fit in case of false positives
@@ -717,7 +718,8 @@ class Client:
                             #             verbose=config.VERBOSE
                             #         )
                         
-                        else:
+                        else: #? True positive
+
                             prev = index + WINDOW_PAST
                             remaining = self.all_labels[index + WINDOW_PAST:]
                             end_index = np.argmax(remaining == 0)
@@ -775,7 +777,7 @@ class Client:
                         continue
             else:
 
-                if self.all_labels[index + WINDOW_PAST] == 0:
+                if self.all_labels[index + WINDOW_PAST] == 0: #? True negative
                     true_negatives = true_negatives + 1
 
                 #? Call fit
