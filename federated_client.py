@@ -648,7 +648,6 @@ class Client:
         start = 0
         start = max(1, start - WINDOW_PAST) - 1
 
-        anomalies_counter = 0
         anomaly = False
         suspected = []
 
@@ -656,16 +655,17 @@ class Client:
 
         total_iterations = len(self.wide_deep_networks_real_errors[0])
 
-        with Progress() as progress:
-
-            task = progress.add_task(f"Simulating {str(self.id)}", total=total_iterations)
-
-            while index + WINDOW_PAST < total_iterations:
+        while index + WINDOW_PAST < total_iterations:
 
                 start_time = time()
                 index = index + 1
 
                 anomalies = []
+
+                print(f"Timestep {index+WINDOW_PAST}", end="\r")
+
+                if index + WINDOW_PAST == 1740:
+                    index
 
                 for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
                     x = errors[index:index+WINDOW_PAST]
@@ -683,30 +683,49 @@ class Client:
                 if any(anomalies):
 
                     if not anomaly:
-                        anomalies_counter = anomalies_counter + 1
+
                         suspected.append(index + WINDOW_PAST)
 
-                        if anomalies_counter >= W_ANOMALY:
+                        if len(suspected) >= W_ANOMALY:
+
                             anomaly = True
                             detected_attacks = detected_attacks + 1
 
                             if not any(self.all_labels[suspected]):
                                 false_positives = false_positives + 1
 
-                                for i in suspected:
-                                    for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
+                                # for i in suspected:
+                                #     for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
 
-                                        x = errors[i:i+WINDOW_PAST]
-                                        y = errors[i+WINDOW_PAST]
+                                #         x = errors[i:i+WINDOW_PAST]
+                                #         y = errors[i+WINDOW_PAST]
 
-                                        threshold_network.fit(
-                                            x=np.expand_dims(x, axis=(0, 2)),
-                                            y=np.array([[y]], dtype=np.float32),
-                                            batch_size=1,
-                                            verbose=config.VERBOSE
-                                        )
+                                #         threshold_network.fit(
+                                #             x=np.expand_dims(x, axis=(0, 2)),
+                                #             y=np.array([[y]], dtype=np.float32),
+                                #             batch_size=1,
+                                #             verbose=config.VERBOSE
+                                #         )
+
+                                precision, recall, f1_score = compute_metrics(true_positives, false_positives, false_negatives)
+
+                                run.log({
+                                    "timestep": index + WINDOW_PAST,
+                                    "precision": precision,
+                                    "recall": recall,
+                                    "f1_score": f1_score,
+                                    "detected_attacks": detected_attacks,
+                                    "true_positives": true_positives,
+                                    "false_positives": false_positives,
+                                    "false_negatives": false_negatives,
+                                    "true_negatives": true_negatives,
+                                    "w_anomaly": len(suspected),
+                                    "duration": time() - start_time
+                                })
+
                             else:
                                 true_positives = true_positives + 1
+
                                 prev = index + WINDOW_PAST
                                 remaining = self.all_labels[index + WINDOW_PAST:]
                                 end_idx = np.argmax(remaining == 0)
@@ -719,7 +738,7 @@ class Client:
                                 current = min(index + WINDOW_PAST, total_iterations)
                                 precision, recall, f1_score = compute_metrics(true_positives, false_positives, false_negatives)
 
-                                for timestep in range(prev, current):
+                                for timestep in range(prev, current + 1):
                                     run.log({
                                         "timestep": timestep,
                                         "precision": precision,
@@ -730,19 +749,22 @@ class Client:
                                         "false_positives": false_positives,
                                         "false_negatives": false_negatives,
                                         "true_negatives": true_negatives,
-                                        "w_anomaly": anomalies_counter,
+                                        "w_anomaly": len(suspected),
                                         "duration": time() - start_time
                                     })
 
+                            anomaly = False
                             suspected = []
+                            continue
                 else:
 
-                    if self.all_labels[index + WINDOW_PAST]:
+                    if self.all_labels[index + WINDOW_PAST] == 1:
                         false_negatives = false_negatives + 1
                     else:
                         true_negatives = true_negatives + 1
 
-                    anomalies_counter = max(0, anomalies_counter - 1)
+                    if len(suspected):
+                        suspected.pop()
 
                     # for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
 
@@ -770,15 +792,9 @@ class Client:
                     "false_positives": false_positives,
                     "false_negatives": false_negatives,
                     "true_negatives": true_negatives,
-                    "w_anomaly": anomalies_counter,
+                    "w_anomaly": len(suspected),
                     "duration": time() - start_time
                 })
-
-                progress.update(
-                    task,
-                    completed=index + WINDOW_PAST,
-                    description=f"Simulating {self.id} {index + WINDOW_PAST} / {total_iterations}"
-                )
 
         run.summary["precision"] = precision
         run.summary["recall"] = recall
