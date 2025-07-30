@@ -703,6 +703,20 @@ class Client:
                         if not overlap_found:
                             false_positives = false_positives + 1
 
+                            #? Call fit in case of false positives
+                            #! We can controle false positives (thanks to the operator)
+                            # for i in suspected:
+                            #     for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
+                            #         x = errors[i:i+WINDOW_PAST]
+                            #         y = errors[i+WINDOW_PAST]
+
+                            #         threshold_network.fit(
+                            #             x=np.expand_dims(x, axis=(0, 2)),
+                            #             y=np.array([[y]], dtype=np.float32),
+                            #             batch_size=1,
+                            #             verbose=config.VERBOSE
+                            #         )
+
                         precision, recall, f1_score = compute_metrics(
                             sum(detected_attacks_mask),
                             false_positives,
@@ -730,6 +744,19 @@ class Client:
 
                 if self.all_labels[index + WINDOW_PAST] == 0:
                     true_negatives = true_negatives + 1
+
+                #? Call fit
+                #! We cannot control false negatives
+                # for errors, threshold_network in zip(self.wide_deep_networks_real_errors, self.threshold_networks):
+                #     x = errors[index:index+WINDOW_PAST]
+                #     y = errors[index+WINDOW_PAST]
+
+                #     threshold_network.fit(
+                #         x=np.expand_dims(x, axis=(0, 2)),
+                #         y=np.array([[y]], dtype=np.float32),
+                #         batch_size=1,
+                #         verbose=config.VERBOSE
+                #     )
 
                 if len(suspected):
                     suspected.pop()
