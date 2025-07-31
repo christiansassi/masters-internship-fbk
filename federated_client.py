@@ -745,7 +745,7 @@ class Client:
                             precision, recall, f1_score = compute_metrics(
                                 sum(detected_attacks_mask),
                                 false_positives,
-                                sum(1 for d in detected_attacks_mask if not d)
+                                len([y for y in detected_attacks_mask[:len([x for x in attack_ends if x <= index])] if not y])
                             ) 
 
                             for timestep in range(prev, current):
@@ -767,7 +767,7 @@ class Client:
                         precision, recall, f1_score = compute_metrics(
                             sum(detected_attacks_mask),
                             false_positives,
-                            sum(1 for d in detected_attacks_mask if not d)
+                            len([y for y in detected_attacks_mask[:len([x for x in attack_ends if x <= index])] if not y])
                         )
 
                         safe_run_log({
@@ -812,7 +812,7 @@ class Client:
             precision, recall, f1_score = compute_metrics(
                 sum(detected_attacks_mask),
                 false_positives,
-                sum(1 for d in detected_attacks_mask if not d)
+                len([y for y in detected_attacks_mask[:len([x for x in attack_ends if x <= index])] if not y])
             )
 
             safe_run_log({
