@@ -733,7 +733,7 @@ class Client:
                                 sum(detected_attacks_mask),
                                 false_positives,
                                 sum(1 for d in detected_attacks_mask if not d)
-                            )
+                            ) 
 
                             for timestep in range(prev, current):
                                 run.log({
