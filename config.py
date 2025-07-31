@@ -55,7 +55,7 @@ class WandbConfig:
 
             return run
     
-    @classmethod
+    @staticmethod
     def safe_log(func):
         def wrapper(*args, **kwargs):
             try:
@@ -65,7 +65,7 @@ class WandbConfig:
 
         return wrapper
 
-    @classmethod
+    @staticmethod
     def safe_finish(func):
         def wrapper(*args, **kwargs):
             try:
