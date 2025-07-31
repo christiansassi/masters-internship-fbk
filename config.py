@@ -54,3 +54,23 @@ class WandbConfig:
             run.finish = lambda *args: None
 
             return run
+    
+    @classmethod
+    def safe_log(func):
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except:
+                pass
+
+        return wrapper
+
+    @classmethod
+    def safe_finish(func):
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except:
+                pass
+
+        return wrapper

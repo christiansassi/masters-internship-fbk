@@ -49,7 +49,7 @@ LEARNING_RATE: float = 0.01
 MOMENTUM: float = 0.9
 LOSS: str = "mse"
 
-W_ANOMALY: int = 30
+W_ANOMALY: int = 15
 
 # According to : https://www.researchgate.net/publication/305809559
 # Some of the attacks have a stronger effect on the dynamics of system and causing more time
