@@ -649,7 +649,7 @@ class Client:
 
         detected_attacks = 0
 
-        start = 1600
+        start = 0
         start = max(0, start - WINDOW_PAST) - 1
 
         anomaly = False
