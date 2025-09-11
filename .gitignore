@@ -8,6 +8,7 @@
 **/datasets
 **/keys
 **/wandb
+**/old_versions
 
 models/*
 

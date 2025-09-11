@@ -1,104 +1,51 @@
-from constants import (
-    MIN_EPOCHS,
-    MAX_EPOCHS,
-    MIN_STEPS,
-    MAX_STEPS,
-    WINDOW_PAST,
-    WINDOW_PRESENT,
-    FEATURES_IN,
-    SENSOR_GROUPS_INDICES,
-    KERNEL_SIZE,
-    LEARNING_RATE,
-    MOMENTUM,
-    LOSS,
-    PATIENCE,
-    WIDE_DEEP_NETWORKS_TMP,
-    WIDE_DEEP_NETWORK_BASENAME,
-    THRESHOLD_NETWORKS_TMP,
-    THRESHOLD_NETWORK_BASENAME
-)
-
 import config
-
-from models import clone_wide_deep_networks, clone_threshold_networks
+import utils
+from constants import *
+from models import WideDeepNetworkDAICS, ThresholdNetworkDAICS
 from federated_client import *
-
-import tensorflow as tf
 
 from os.path import join
 from os import makedirs
 
-from shutil import rmtree
-
 import logging
 
 from time import time
+from datetime import datetime
+
+import tensorflow as tf
 
 class Server:
 
-    def __init__(self, clients: list[Client], wide_deep_networks: list[WideDeepNetworkDAICS] = [], threshold_networks: list[ThresholdNetworkDAICS] = []):
+    def __init__(self, clients: list[Client], wide_deep_network: WideDeepNetworkDAICS = None):
         
         self.clients = clients
 
-        # Generate wide deep networks if not provided
-        self.wide_deep_networks = []
+        if wide_deep_network is None:
+            self.wide_deep_network = WideDeepNetworkDAICS(
+                window_past=WINDOW_PAST,
+                window_present=WINDOW_PRESENT,
+                n_inputs=len(GLOBAL_INPUTS),
+                n_outputs=len(GLOBAL_OUTPUTS)
+            )
+
+            self.wide_deep_network.build(
+                input_shape=(None, WINDOW_PAST, len(GLOBAL_INPUTS))
+            )
+
+            self.wide_deep_network.compile(
+                optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
+                loss=LOSS
+            )
+        
+        else:
+            self.wide_deep_network = wide_deep_network.clone()
+
         self.wide_deep_score = 0
 
-        if len(wide_deep_networks) != len(SENSOR_GROUPS_INDICES):
-
-            for sensors_indices in SENSOR_GROUPS_INDICES:
-
-                model = WideDeepNetworkDAICS(
-                    window_size_in=WINDOW_PAST,
-                    window_size_out=WINDOW_PRESENT,
-                    n_devices_in=FEATURES_IN,
-                    n_devices_out=len(sensors_indices),
-                    kernel_size=KERNEL_SIZE
-                )
-
-                model.compile(
-                    optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-                    loss=LOSS
-                )
-
-                self.wide_deep_networks.append(model)
-
-        else:
-            self.wide_deep_networks = clone_wide_deep_networks(
-                wide_deep_networks=wide_deep_networks,
-                optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-                loss=LOSS
-            )
-
-        # Generate threshold networks if not provided
-        self.threshold_networks = []
-        self.threshold_score = 0
-
-        if len(threshold_networks) != len(SENSOR_GROUPS_INDICES):
-
-            for _ in SENSOR_GROUPS_INDICES:
-                model = ThresholdNetworkDAICS()
-
-                model.compile(
-                    optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-                    loss=LOSS
-                )
-
-                self.threshold_networks.append(model)
-
-        else:
-            self.threshold_networks = clone_threshold_networks(
-                threshold_networks=threshold_networks,
-                optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-                loss=LOSS
-            )
-
-        # Align the client's models with the server's
         for client in self.clients:
-            client.set_wide_deep_networks(wide_deep_networks=self.wide_deep_networks)
-            client.set_threshold_networks(threshold_networks=self.threshold_networks)
+            client.set_wide_deep_network(wide_deep_network=self.wide_deep_network)
 
-    def select_clients(self, label: str) -> list[Client]:
+    def select_clients(self) -> list[Client]:
 
         selected_clients = []
 
@@ -107,72 +54,71 @@ class Server:
 
         for client in self.clients:
 
-            if getattr(client, f"{label}_score") > getattr(self, f"{label}_score"):
+            if client.wide_deep_score > self.wide_deep_score:
                 continue
 
-            min_score = min(min_score, getattr(client, f"{label}_score"))
-            max_score = max(max_score, getattr(client, f"{label}_score"))
+            min_score = min(min_score, client.wide_deep_score)
+            max_score = max(max_score, client.wide_deep_score)
 
             selected_clients.append(client)
         
         for index, client in enumerate(selected_clients):
 
             if max_score != min_score:
-                scaling_factor = (max_score - getattr(client, f"{label}_score")) / (max_score - min_score)
+                scaling_factor = (max_score - client.wide_deep_score) / (max_score - min_score)
             else:
                 scaling_factor = 0
 
-            setattr(client, f"{label}_epochs", int(MIN_EPOCHS + (MAX_EPOCHS - MIN_EPOCHS) * scaling_factor))
-            setattr(client, f"{label}_steps", int(MIN_STEPS + (MAX_STEPS - MIN_STEPS) * scaling_factor))
+            client.wide_deep_epochs = int(MIN_EPOCHS + (MAX_EPOCHS - MIN_EPOCHS) * scaling_factor)
+            client.wide_deep_steps = int(MIN_STEPS + (MAX_STEPS - MIN_STEPS) * scaling_factor)
 
             selected_clients[index] = client
         
         return selected_clients
 
-    def aggregate_networks(self, label: str, clients: list[Client], weighted: bool = False) -> list[WideDeepNetworkDAICS] | list[ThresholdNetworkDAICS]:
+    def aggregate_networks(self, clients: list[Client], weighted: bool = False) -> WideDeepNetworkDAICS:
+        
+        old_weights = [client.wide_deep_network.get_weights() for client in clients]
+        new_weights = []
 
-        aggregated_models = []
+        if not weighted:
 
-        for index in range(len(getattr(self, f"{label}_networks"))):
-
-            group_models = [getattr(client, f"{label}_networks")[index] for client in clients]
-
-            if weighted:
-                total_samples = sum(len(client.train_input_indices) for client in clients)
-                weights = [len(client.train_input_indices) / total_samples for client in clients]
+            for weights in zip(*old_weights):
+                new_weights.append(np.mean(np.stack(weights, axis=0), axis=0))
             
-            else:
-                weights = [1.0 / len(clients)] * len(clients)
+        else:
+
+            sample_counts = [len(client.df_train) + len(client.df_val) + len(client.df_test) for client in clients]
+            total = np.sum(sample_counts)
+
+            for weights in zip(*old_weights):
+                weighted_sum = np.sum([w * (n/total) for w, n in zip(weights, sample_counts)], axis=0)
+                new_weights.append(weighted_sum)
             
-            averaged_weights = []
+        wide_deep_network = self.wide_deep_network.clone()
+        wide_deep_network.set_weights(new_weights)
 
-            for layer_index in range(len(group_models[0].get_weights())):
-                layer_weights = [model.get_weights()[layer_index] for model in group_models]
-                weighted_sum = sum(weight * layer_weight for weight, layer_weight in zip(weights, layer_weights))
-                averaged_weights.append(weighted_sum)
+        return wide_deep_network
 
-            new_model = eval(f"clone_{label}_networks")(
-                [group_models[0]],
-                optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-                loss=LOSS
-            )[0]
+    def federated_learning(self):
 
-            new_model.set_weights(averaged_weights)
-            aggregated_models.append(new_model)
+        session_id = str(int(datetime.now().timestamp()))
 
-        return aggregated_models
+        run = config.WandbConfig.init_run(f"Wide Deep Network")
 
-    def federated_learning(self, label: str):
+        map_clients_ids = {str(client): f"{'-'.join(client.normal_inputs)}" for index, client in enumerate(self.clients, start=1)}
 
-        run = config.WandbConfig.init_run(f"{label.replace('_',' ').title()} Networks")
-
-        selected_clients = self.select_clients(label=label)
-
-        networks = getattr(self, f"{label}_networks")
+        losses = {client: {
+            "loss": float("-inf"),
+            "val_loss": float("-inf"),
+            "eval_loss": float("-inf")
+        } for client in map_clients_ids.values()}
 
         round_num = 0
-        max_score = float("-inf")
         stop_counter = 0
+
+        best_score = float("-inf")
+        best_wide_deep_network = self.wide_deep_network.clone()
 
         while True:
 
@@ -183,120 +129,87 @@ class Server:
             print("")
             logging.info(f"---------- Round {round_num} ----------")
 
+            # Select clients
+            selected_clients = self.select_clients()
+
             # Update clients
             for index, client in enumerate(selected_clients):
-                logging.info(f"Training {index + 1} / {len(selected_clients)}")
-                getattr(client, f"train_{label}_network")(getattr(self, f"{label}_networks"))
-            
+                print(f"{utils.log_timestamp_status()} Training {index + 1} / {len(selected_clients)}", end="\r")
+                loss, val_loss = client.train_wide_deep_network(wide_deep_network=self.wide_deep_network)
+
+                client_id = map_clients_ids[str(client)]
+
+                losses[client_id]["loss"] = loss
+                losses[client_id]["val_loss"] = val_loss
+
             logging.info(f"Trained {len(selected_clients)} clients")
 
             # Model aggregation
             logging.info(f"Aggregating models")
-            setattr(
-                self, 
-                f"{label}_networks", 
-                self.aggregate_networks(
-                    label=label,
-                    clients=self.clients
-                )
-            )
+            self.wide_deep_network = self.aggregate_networks(clients=self.clients)
 
             # Evaluate clients
-            setattr(
-                self,
-                f"{label}_score",
-                0
-            )
+            self.wide_deep_score = 0
 
             for index, client in enumerate(self.clients):
-                logging.info(f"Evaluating {index + 1} / {len(self.clients)}")
-                score = getattr(client, f"eval_{label}_network")(getattr(self, f"{label}_networks"))
+                print(f"{utils.log_timestamp_status()} Evaluating {index + 1} / {len(self.clients)}", end="\r")
+
+                score = client.eval_wide_deep_network(wide_deep_network=self.wide_deep_network)
+
+                client_id = map_clients_ids[str(client)]
+
+                losses[client_id]["eval_loss"] = score
+    
+                self.wide_deep_score = self.wide_deep_score + score
             
-                setattr(
-                self,
-                f"{label}_score",
-                    getattr(self, f"{label}_score") + score
-                )
-            
-            setattr(
-                self,
-                f"{label}_score",
-                    getattr(self, f"{label}_score") / len(self.clients)
-                )
-            
+            self.wide_deep_score = self.wide_deep_score / len(self.clients)
+
             logging.info(f"Evaluated {len(self.clients)} clients")
 
             # Check for improvements
-            logging.info(f"Current score: {getattr(self, f'{label}_score')}")
-            logging.info(f"Best score: {max_score}")
+            logging.info(f"Current score: {self.wide_deep_score}")
+            logging.info(f"Best score: {best_score}")
 
-            if getattr(self, f"{label}_score") > max_score:
-                max_score = getattr(self, f"{label}_score")
-
-                networks = eval(f"clone_{label}_networks")(
-                    getattr(self, f"{label}_networks"),
-                    optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-                    loss=LOSS
-                )
-
+            if self.wide_deep_score > best_score:
                 stop_counter = 0
 
-                root = eval(f"{label.upper()}_NETWORKS_TMP")
-                basename = eval(f"{label.upper()}_NETWORKS_BASENAME")
+                best_score = self.wide_deep_score
+                best_wide_deep_network = self.wide_deep_network.clone()
 
-                makedirs(root, exist_ok=True)
+                # Save the checkpoint
+                makedirs(name=WIDE_DEEP_NETWORK_CHECKPOINT, exist_ok=True)
 
-                # Delete everything
-                for index, network in enumerate(networks):
-                    filepath = join(root, f"{basename}_{str(index + 1)}")
-                    rmtree(filepath, ignore_errors=True)
+                best_wide_deep_network.save_weights(filepath=f"{join(WIDE_DEEP_NETWORK_CHECKPOINT, WIDE_DEEP_NETWORK_BASENAME)}-{session_id}.h5")
 
-                # Save
-                for index, network in enumerate(networks):
-                    network.save(join(root, f"{basename}_{str(index + 1)}"), save_format="tf")
-            
             else:
                 stop_counter = stop_counter + 1
             
             # Check stop conditions
             logging.info(f"Patience {stop_counter} / {PATIENCE}")
 
-            run.log({ # type: ignore
-                "round": round_num, 
-                "clients": len(selected_clients),
-                "score": getattr(self, f"{label}_score"), 
-                "best": max_score,
+            log = {
+                "round": round_num,
+                "selected_clients": len(selected_clients),
+                "score": self.wide_deep_score,
+                "best": best_score,
                 "stop_counter": stop_counter,
-                "time_per_round": time() - start
-            })
+                "time_per_round": time() - start,
+            }
+
+            log.update(losses)
+
+            run.log(log)
 
             if stop_counter >= PATIENCE:
                 break
-            
-            # Select new clients
-            selected_clients = self.select_clients(label=label)
-
-        # Update global models
-        setattr(
-            self, 
-            f"{label}_networks",
-            eval(f"clone_{label}_networks")(
-                networks,
-                optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-                loss=LOSS
-            )
-        )
-
-        # Update clients
-        for client in self.clients:
-            setattr(
-                client, 
-                f"{label}_networks",
-                eval(f"clone_{label}_networks")(
-                    networks,
-                    optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-                    loss=LOSS
-                )
-            )
         
+        self.wide_deep_network = best_wide_deep_network.clone()
+
+        for client in self.clients:
+            client.set_wide_deep_network(wide_deep_network=self.wide_deep_network)
+        
+        makedirs(name=WIDE_DEEP_NETWORK, exist_ok=True)
+
+        self.wide_deep_network.save_weights(filepath=f"{join(WIDE_DEEP_NETWORK, WIDE_DEEP_NETWORK_BASENAME)}-{session_id}.h5")
+
         run.finish()

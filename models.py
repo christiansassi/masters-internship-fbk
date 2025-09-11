@@ -1,202 +1,191 @@
-from constants import (
-    WIDE_DEEP_NETWORKS,
-    THRESHOLD_NETWORKS,
-    WINDOW_PAST
-)
+from constants import *
 
-import config
-
-from os import listdir
-from os.path import join
+import numpy as np
 
 import tensorflow as tf
+from tensorflow import keras
 from tensorflow.keras import layers # type: ignore
-from tensorflow.keras.models import load_model # type: ignore
 
-class FeatureExtractor(tf.keras.Model):
-    def __init__(self, window_size_in, window_size_out, n_devices_in, kernel_size):
-        super().__init__()
-        proj_dim = window_size_in * 3 if window_size_in >= n_devices_in else n_devices_in * 3
+# ===========================================
+# Wide & Deep Network
+# ===========================================
 
-        self.proj = layers.Dense(proj_dim)
-        self.conv1 = layers.Conv1D(64, kernel_size, activation=tf.nn.leaky_relu)
-        self.pool1 = layers.MaxPooling1D(2)
-        self.conv2 = layers.Conv1D(128, kernel_size, activation=tf.nn.leaky_relu)
-        self.pool2 = layers.MaxPooling1D(2)
-        self.conv_out = layers.Dense(window_size_out)
+class WideDeepNetworkDAICS(keras.Model):
+    def __init__(
+            self, 
+            window_past: int, 
+            window_present: int,
+            n_inputs: int, 
+            n_outputs: int,
+            conv_filters: int = 64, 
+            conv_kernel: int = KERNEL_SIZE,
+            hidden_units: int = 80, 
+            dropout: float = 0.4
+        ):
 
-        self.wide_fc = layers.Dense(window_size_out)
-        self.combine_fc = layers.Dense(80, activation=tf.nn.leaky_relu)
-        self.dropout = layers.Dropout(0.4)
-        self.window_size_out = window_size_out
-
-    def call(self, x, training=False):
-        wide = self.wide_fc(x)
-        wide = tf.nn.leaky_relu(wide)
-        wide = self.dropout(wide, training=training)
-
-        x_proj = self.proj(x)
-        x_conv = self.pool1(self.conv1(x_proj))
-        x_conv = self.pool2(self.conv2(x_conv))
-        x_conv = self.dropout(x_conv, training=training)
-        x_conv = self.conv_out(x_conv)
-
-        x_conv = tf.expand_dims(x_conv, -1)
-        x_conv = tf.image.resize(x_conv, [tf.shape(wide)[1], self.window_size_out])
-        x_conv = tf.squeeze(x_conv, -1)
-
-        merged = tf.concat([x_conv, wide], axis=-1)
-        return self.combine_fc(merged)
-
-class SensorPredictor(tf.keras.Model):
-
-    def __init__(self, n_devices_out):
-        super().__init__()
-        self.out_h1 = layers.Dense(int(n_devices_out * 2.25), activation=tf.nn.leaky_relu)
-        self.out_h2 = layers.Dense(int(n_devices_out * 1.5), activation=tf.nn.leaky_relu)
-        self.out = layers.Dense(n_devices_out)
-        self.dropout = layers.Dropout(0.4)
-
-    def call(self, x, training=False):
-        x = self.dropout(self.out_h1(x), training=training)
-        x = self.dropout(self.out_h2(x), training=training)
-        return self.out(x)
-
-class WideDeepNetworkDAICS(tf.keras.Model):
-    def __init__(self, window_size_in, window_size_out, n_devices_in, n_devices_out, kernel_size):
         super().__init__()
 
-        self.window_size_in = window_size_in
-        self.window_size_out = window_size_out
-        self.n_devices_in = n_devices_in
-        self.n_devices_out = n_devices_out
-        self.kernel_size = kernel_size
-        
-        self.feature_extractor = FeatureExtractor(window_size_in, window_size_out, n_devices_in, kernel_size)
-        self.sensor_predictor = SensorPredictor(n_devices_out)
-        self.window_size_out = window_size_out
+        self.window_past = window_past
+        self.window_present = window_present
+        self.n_inputs = n_inputs
+        self.n_outputs = n_outputs
 
-    def call(self, x, training=False):
-        x = self.feature_extractor(x, training=training)
-        x = self.sensor_predictor(x, training=training)
-        return x[:, -self.window_size_out:, :]
+        # Client-specific mask (set externally)
+        self.mask_out = None
+
+        # Wide branch
+        self.fc_wide = layers.Dense(window_present)
+
+        # Deep branch
+        self.conv1 = layers.Conv1D(conv_filters, conv_kernel, activation="leaky_relu")
+        self.pool1 = layers.MaxPool1D(2)
+        self.conv2 = layers.Conv1D(conv_filters * 2, conv_kernel, activation="leaky_relu")
+        self.pool2 = layers.MaxPool1D(2)
+        self.dropout = layers.Dropout(dropout)
+
+        # Combine
+        self.fc_combine = layers.Dense(hidden_units, activation="leaky_relu")
+
+        # Head
+        self.fc_out1 = layers.Dense(int(n_outputs * 2.25), activation="leaky_relu")
+        self.fc_out2 = layers.Dense(int(n_outputs * 1.5), activation="leaky_relu")
+        self.out = layers.Dense(window_present * n_outputs, activation="linear")
+
+    def set_mask(self, mask_out: np.ndarray, window_present: int):
+        mask = np.zeros((1, window_present, self.n_outputs), dtype=np.float32)
+
+        for index in mask_out:
+            mask[:, :, index] = 1.0
+
+        self.mask_out = tf.constant(mask, dtype=tf.float32)
+
+    def call(self, inputs, training=False):
+        x = inputs  # (B, W_in, n_inputs)
+
+        # Wide
+        wide = self.fc_wide(tf.transpose(x, perm=[0, 2, 1]))
+
+        # Deep
+        d = self.conv1(x)
+        d = self.pool1(d)
+        d = self.conv2(d)
+        d = self.pool2(d)
+        d = self.dropout(d, training=training)
+        d = tf.reduce_mean(d, axis=1)
+
+        # Combine
+        wide_mean = tf.reduce_mean(wide, axis=1)
+        fused = tf.concat([wide_mean, d], axis=-1)
+        fused = self.fc_combine(fused)
+
+        # Head
+        y = self.fc_out1(fused)
+        y = self.dropout(y, training=training)
+        y = self.fc_out2(y)
+        y = self.dropout(y, training=training)
+        out = self.out(y)
+        out = tf.reshape(out, (-1, self.window_present, self.n_outputs))
+
+        if self.mask_out is not None:
+            out = out * self.mask_out
+
+        return out
+
+    def clone(self):
+
+        clone = WideDeepNetworkDAICS(
+            self.window_past, self.window_present,
+            self.n_inputs, self.n_outputs
+        )
+
+        # Build weights
+        clone.build(input_shape=(None, self.window_past, self.n_inputs))
+
+        # Copy weights
+        clone.set_weights(self.get_weights())
+
+        # Copy mask if present
+        if self.mask_out is not None:
+            clone.mask_out = tf.identity(self.mask_out)
+
+        # Compile
+        clone.compile(
+            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
+            loss=LOSS
+        )
+
+        return clone
+    
+    def save(self, *args, **kwargs):
+
+        dummy = tf.zeros((1, self.window_past, self.n_inputs))
+        _ = self(dummy) 
+
+        super().save(*args, **kwargs)
 
     def get_config(self):
         return {
-            "window_size_in": self.window_size_in,
-            "window_size_out": self.window_size_out,
-            "n_devices_in": self.n_devices_in,
-            "n_devices_out": self.n_devices_out,
-            "kernel_size": self.kernel_size,
+            "window_past": self.window_past,
+            "window_present": self.window_present,
+            "n_inputs": self.n_inputs,
+            "n_outputs": self.n_outputs,
         }
-    
+
     @classmethod
     def from_config(cls, config):
         return cls(**config)
 
-class ThresholdNetworkDAICS(tf.keras.Model):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = layers.Conv1D(2, kernel_size=2, activation="relu")
-        self.pool1 = layers.MaxPooling1D(pool_size=2)
-        self.conv2 = layers.Conv1D(4, kernel_size=2, activation="relu")
-        self.pool2 = layers.MaxPooling1D(pool_size=2)
-        self.flatten = layers.Flatten()
-        self.out = layers.Dense(1)
+# ===========================================
+# Threshold Network
+# ===========================================
 
-    def call(self, x):
-        x = self.conv1(x)
+class ThresholdNetworkDAICS(keras.Model):
+    def __init__(
+            self, 
+            window_past: int, 
+            window_present: int
+        ):
+
+        super().__init__()
+
+        self.window_past = window_past
+        self.window_present = window_present
+
+        self.conv1 = layers.Conv1D(2, 2, activation="relu")
+        self.pool1 = layers.MaxPool1D(2)
+        self.conv2 = layers.Conv1D(4, 2, activation="relu")
+        self.pool2 = layers.MaxPool1D(2)
+
+        self.flatten = layers.Flatten()
+        self.fc_out = layers.Dense(1, activation="relu")
+
+        self.compile(optimizer=keras.optimizers.SGD(learning_rate=0.01), loss="mse")
+
+    def call(self, inputs, training=False):
+
+        # inputs: (B, W_in, 1) prediction errors
+        x = self.conv1(inputs)
         x = self.pool1(x)
         x = self.conv2(x)
         x = self.pool2(x)
         x = self.flatten(x)
-        return self.out(x)
+        out = self.fc_out(x)
 
-def clone_wide_deep_networks(
-    wide_deep_networks: list[WideDeepNetworkDAICS],
-    optimizer: tf.keras.optimizers.Optimizer,
-    loss: str
-) -> list[WideDeepNetworkDAICS]:
+        return out  # (B, 1)
 
-    cloned_models = []
+    def clone(self):
+        clone = ThresholdNetworkDAICS(self.window_past, self.window_present)
 
-    for original_model in wide_deep_networks:
-        
-        window_size_in = original_model.window_size_in
-        window_size_out = original_model.window_size_out
-        n_devices_in = original_model.n_devices_in
-        n_devices_out = original_model.n_devices_out
-        kernel_size = original_model.kernel_size
+        # Build weights
+        clone.build(input_shape=(None, self.window_past, self.n_inputs))
 
-        if not original_model.built:
-            dummy_input = tf.zeros((1, window_size_in, n_devices_in))
-            _ = original_model(dummy_input, training=False)
+        # Copy weights
+        clone.set_weights(self.get_weights())
 
-        original_weights = original_model.get_weights()
-
-        cloned_model = WideDeepNetworkDAICS(
-            window_size_in=window_size_in,
-            window_size_out=window_size_out,
-            n_devices_in=n_devices_in,
-            n_devices_out=n_devices_out,
-            kernel_size=kernel_size
+        # Compile
+        clone.compile(
+            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
+            loss=LOSS
         )
 
-        dummy_input = tf.zeros((1, window_size_in, n_devices_in))
-        _ = cloned_model(dummy_input, training=False)
-
-        cloned_model.set_weights(original_weights)
-        cloned_model.compile(optimizer=optimizer, loss=loss)
-
-        cloned_models.append(cloned_model)
-
-    return cloned_models
-
-def load_wide_deep_networks() -> list[WideDeepNetworkDAICS]:
-
-    wide_deep_networks = []
-
-    for wide_deep_network in listdir(WIDE_DEEP_NETWORKS):
-        model = load_model(join(WIDE_DEEP_NETWORKS, wide_deep_network), custom_objects={"WideDeepNetworkDAICS": WideDeepNetworkDAICS})
-        wide_deep_networks.append(model)
-    
-    return wide_deep_networks
-
-def clone_threshold_networks(
-    threshold_networks: list[ThresholdNetworkDAICS],
-    optimizer: tf.keras.optimizers.Optimizer,
-    loss: str
-) -> list[ThresholdNetworkDAICS]:
-
-    cloned_models = []
-
-    for original_model in threshold_networks:
-
-        if not original_model.built:
-            dummy_input = tf.zeros((1, WINDOW_PAST, 1))
-            _ = original_model(dummy_input)
-
-        original_weights = original_model.get_weights()
-
-        cloned_model = ThresholdNetworkDAICS()
-
-        dummy_input = tf.zeros((1, WINDOW_PAST, 1))
-        _ = cloned_model(dummy_input)
-
-        cloned_model.set_weights(original_weights)
-
-        cloned_model.compile(optimizer=optimizer, loss=loss)
-
-        cloned_models.append(cloned_model)
-
-    return cloned_models
-
-def load_threshold_networks() -> list[ThresholdNetworkDAICS]:
-
-    threshold_networks = []
-
-    for threshold_network in listdir(THRESHOLD_NETWORKS):
-        model = load_model(join(THRESHOLD_NETWORKS, threshold_network), custom_objects={"ThresholdNetworkDAICS": ThresholdNetworkDAICS})
-        threshold_networks.append(model)
-    
-    return threshold_networks
+        return clone

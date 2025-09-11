@@ -1,9 +1,6 @@
 from os.path import join
 
-from time import time
-
-#? === Constants from DAICS ===
-ACTUATORS_SENSORS: list[str] = [
+GLOBAL_INPUTS = [
     "FIT101", "LIT101", "MV101", "P101", "P102", "AIT201", "AIT202", "AIT203",
     "FIT201", "MV201", "P201", "P202", "P203", "P204", "P205", "P206",
     "DPIT301", "FIT301", "LIT301", "MV301", "MV302", "MV303", "MV304",
@@ -13,26 +10,71 @@ ACTUATORS_SENSORS: list[str] = [
     "PIT502", "PIT503", "FIT601", "P601", "P602", "P603"
 ]
 
-FEATURES_IN: int = len(ACTUATORS_SENSORS)
-
-SENSORS_GROUPS: list[list] = [
-    ["FIT101", "LIT101"],
-    ["AIT201", "AIT202", "AIT203", "FIT201"],
-    ["DPIT301", "FIT301", "LIT301"],
-    ["AIT401", "AIT402", "FIT401", "LIT401"],
-    ["AIT501", "AIT502", "AIT503", "AIT504", "FIT501", "FIT502", "FIT503", "FIT504", "PIT501", "PIT502", "PIT503"],
-    ["FIT601"]
+GLOBAL_OUTPUTS = [
+    "FIT101", "LIT101", "AIT201", "AIT202", "AIT203", "FIT201", "DPIT301", "FIT301", 
+    "LIT301", "AIT401", "AIT402", "FIT401", "LIT401", "AIT501", "AIT502", "AIT503", 
+    "AIT504", "FIT501", "FIT502", "FIT503", "FIT504", "PIT501", "PIT502", "PIT503", "FIT601"
 ]
 
-SENSOR_GROUPS_INDICES: list[list] = [
-    [0, 1], 
-    [5, 6, 7, 8], 
-    [16, 17, 18], 
-    [25, 26, 27, 28], 
-    [34, 35, 36, 37, 38, 39, 40, 41, 44, 45, 46], 
-    [47]
+STAGES: list[list[str]] = [
+    # Stage 1: Raw Water Supply
+    ["FIT101", "LIT101", "MV101", "P101", "P102"],
+
+    # Stage 2: Pre-treatment / Chemical Dosing
+    ["AIT201", "AIT202", "AIT203", "FIT201", "MV201", "P201", "P202", "P203", "P204", "P205", "P206"],
+
+    # Stage 3: Ultrafiltration
+    ["DPIT301", "FIT301", "LIT301", "MV301", "MV302", "MV303", "MV304", "P301", "P302"],
+
+    # Stage 4: Dechlorination
+    ["AIT401", "AIT402", "FIT401", "LIT401", "P401", "P402", "P403", "P404", "UV401"],
+
+    # Stage 5: Reverse Osmosis
+    ["AIT501", "AIT502", "AIT503", "AIT504", "FIT501", "FIT502", "FIT503", "FIT504", "PIT501", "PIT502", "PIT503", "P501", "P502"],
+
+    # Stage 6: Backwash
+    ["FIT601", "P601", "P602", "P603"]
 ]
 
+ATTACKS: list[list[str]] = [
+    ["MV101"],
+    ["P102"],
+    ["LIT101"],
+    ["MV504"],
+    ["AIT202"],
+    ["LIT301"],
+    ["DPIT301"],
+    ["FIT401"],
+    ["FIT401"],
+    ["MV304"],
+    ["MV303"],
+    ["UV401"],
+    ["AIT504"],
+    ["P602"],
+    ["P203"],
+    ["P204"],
+    ["P205"],
+    ["P206"],
+    ["MV201"],
+    ["P302"],
+    ["MV301"],
+    ["MV302"],
+    ["MV101"],
+    ["P101"],
+    ["P601"],
+    ["LIT401"],
+    ["P501"],
+    ["P502"],
+    ["FIT503"],
+    ["AIT503"],
+    ["AIT501"],
+    ["FIT502"],
+    ["P402"],
+    ["P403"],
+    ["P404"],
+]
+
+#? === Constants from DAICS ===
 WINDOW_PAST: int = 60
 HORIZON: int = 50
 WINDOW_PRESENT: int = 4
@@ -61,7 +103,6 @@ W_GRACE: int = 60
 MED_FILTER_LAG: int = 59
 
 #? === Constants from FLAD ===
-
 MIN_EPOCHS: int = 1
 MAX_EPOCHS: int = 5
 MIN_STEPS: int = 10
@@ -84,23 +125,15 @@ OUTPUT_DIR: str = join(ROOT_DIR, "processed")
 OUTPUT_FILE: str = join(OUTPUT_DIR, "SWaT_Dataset.h5")
 
 MODELS: str = "models"
-MODELS_TMP: str = join(MODELS, "tmp", str(int(time())))
+MODELS_CHECKPOINTS: str = join(MODELS, "checkpoints")
 
-WIDE_DEEP_NETWORKS_BASENAME: str = "wide_deep_networks"
 WIDE_DEEP_NETWORK_BASENAME: str = "wide_deep_network"
-WIDE_DEEP_NETWORKS_LABEL: str = "wide_deep"
-WIDE_DEEP_NETWORKS: str = join(MODELS, WIDE_DEEP_NETWORKS_BASENAME)
-WIDE_DEEP_NETWORKS_TMP: str = join(MODELS_TMP, WIDE_DEEP_NETWORKS_BASENAME)
+WIDE_DEEP_NETWORK: str = join(MODELS, WIDE_DEEP_NETWORK_BASENAME)
+WIDE_DEEP_NETWORK_CHECKPOINT: str = join(MODELS_CHECKPOINTS, WIDE_DEEP_NETWORK_BASENAME)
 
-THRESHOLD_NETWORKS_BASENAME: str = "threshold_networks"
 THRESHOLD_NETWORK_BASENAME: str = "threshold_network"
-THRESHOLD_NETWORKS_LABEL: str = "threshold"
-THRESHOLD_NETWORKS: str = join(MODELS, THRESHOLD_NETWORKS_BASENAME)
-THRESHOLD_NETWORKS_TMP: str = join(MODELS_TMP, THRESHOLD_NETWORKS_BASENAME)
-
-CACHE: str = "cache"
-CACHE_CLIENTS: str = join(CACHE, "clients")
+THRESHOLD_NETWORKS: str = join(MODELS, THRESHOLD_NETWORK_BASENAME)
+THRESHOLD_NETWORKS_CHECKPOINT: str = join(MODELS_CHECKPOINTS, THRESHOLD_NETWORK_BASENAME)
 
 #? === Federated Learning
-
 N_CLIENTS: int = 15

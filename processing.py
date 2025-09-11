@@ -1,20 +1,4 @@
-from constants import (
-    ACTUATORS_SENSORS,
-    WINDOW_PAST,
-    HORIZON,
-    WINDOW_PRESENT,
-    SAMPLING_START,
-    TRAIN_STEP,
-    VAL_STEP,
-    TEST_STEP,
-    BATCH_SIZE,
-    INPUT_NORMAL_FILE,
-    INPUT_ATTACK_FILE,
-    OUTPUT_DIR,
-    OUTPUT_FILE,
-    TRAIN,
-    VAL
-)
+from constants import *
 
 from os import makedirs
 
@@ -22,6 +6,9 @@ import numpy as np
 
 import h5py
 import pandas as pd
+
+import re
+from itertools import groupby
 
 def clean_dataset(src: str) -> pd.DataFrame:
 
@@ -40,19 +27,19 @@ def clean_dataset(src: str) -> pd.DataFrame:
     })
 
     # Keep only sensors and actuators
-    df[ACTUATORS_SENSORS] = df[ACTUATORS_SENSORS].astype(float)
+    df[GLOBAL_INPUTS] = df[GLOBAL_INPUTS].astype(float)
 
     df["Normal/Attack"] = df["Normal/Attack"].map({"Normal": 0, "Attack": 1})
     df["Normal/Attack"] = df["Normal/Attack"].astype(int)
 
-    df = df[ACTUATORS_SENSORS + ["Normal/Attack"]]
+    df = df[GLOBAL_INPUTS + ["Normal/Attack"]]
 
     return df
 
 def normalize_datasets(*datasets: tuple[pd.DataFrame]) -> tuple[pd.DataFrame]:
 
     # Vertically stack all the data
-    full_data = np.vstack([dataset[ACTUATORS_SENSORS].values for dataset in datasets])
+    full_data = np.vstack([dataset[GLOBAL_INPUTS].values for dataset in datasets])
 
     # Get min and max value
     min_v = np.minimum(full_data.min(axis=0), 0)
@@ -64,13 +51,34 @@ def normalize_datasets(*datasets: tuple[pd.DataFrame]) -> tuple[pd.DataFrame]:
     return (
         pd.DataFrame(
             data=np.hstack([
-                normalize(dataset[ACTUATORS_SENSORS].values),
+                normalize(dataset[GLOBAL_INPUTS].values),
                 dataset[["Normal/Attack"]].values
             ]),
-            columns=ACTUATORS_SENSORS + ["Normal/Attack"]
+            columns=GLOBAL_INPUTS + ["Normal/Attack"]
         )
         for dataset in datasets
     )
+
+def split_clients(df: pd.DataFrame) -> list[pd.DataFrame]:
+
+    clients = [df[stage + ["Normal/Attack"]].copy() for stage in STAGES]
+
+    attack_indices = df.index[df["Normal/Attack"] == 1].tolist()
+
+    attack_chunks = []
+
+    for _, group in groupby(enumerate(attack_indices), key=lambda t: t[1] - t[0]):
+        attack_chunks.append([v for _, v in group])
+
+    for index1, attack_chunk in enumerate(attack_chunks):
+
+        for index2, client in enumerate(clients):
+            if set(ATTACKS[index1]) & set(client.columns):
+                clients[index2].loc[attack_chunk, "Normal/Attack"] = 1
+            else:
+                clients[index2].loc[attack_chunk, "Normal/Attack"] = 0
+    
+    return clients
 
 def split_train_val_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
@@ -140,43 +148,63 @@ if __name__ == "__main__":
 
     df_normal, df_attack = normalize_datasets(df_normal, df_attack)
 
-    df_normal_train, df_normal_val, df_normal_test = split_train_val_test(df=df_normal)
+    clients_normal = split_clients(df=df_normal)
+    clients_attack = split_clients(df=df_attack)
 
-    (
-        df_normal_train_input_indices, 
-        df_normal_train_output_indices, 
-        
-        df_normal_val_input_indices, 
-        df_normal_val_output_indices, 
-        
-        df_normal_test_input_indices, 
-        df_normal_test_output_indices
-    ) = prepare_sliding_windows(df_train=df_normal_train, df_val=df_normal_val, df_test=df_normal_test)
-
-    (
-        df_attack_input_indices,
-        df_attack_output_indices
-    ) = prepare_sliding_windows(df_test=df_attack)
-
-    # Save everything
     hf = h5py.File(name=OUTPUT_FILE, mode="w")
+    group_normal = hf.create_group(f"normal")
+    group_attack = hf.create_group(f"attack")
 
-    hf.create_dataset("df_normal_train", data=df_normal_train.values)
-    hf.create_dataset("df_normal_val", data=df_normal_val.values)
-    hf.create_dataset("df_normal_test", data=df_normal_test.values)
+    sensor_re = re.compile(r"^(FIT|LIT|AIT|PIT|DPIT)\d{3}$", re.IGNORECASE)
 
-    hf.create_dataset("df_normal_train_input_indices", data=df_normal_train_input_indices)
-    hf.create_dataset("df_normal_train_output_indices", data=df_normal_train_output_indices)
+    for index, client in enumerate(clients_normal, start=1):
 
-    hf.create_dataset("df_normal_val_input_indices", data=df_normal_val_input_indices)
-    hf.create_dataset("df_normal_val_output_indices", data=df_normal_val_output_indices)
+        df_normal_train, df_normal_val, df_normal_test = split_train_val_test(df=client)
 
-    hf.create_dataset("df_normal_test_input_indices", data=df_normal_test_input_indices)
-    hf.create_dataset("df_normal_test_output_indices", data=df_normal_test_output_indices)
+        (
+            df_normal_train_input_indices, 
+            df_normal_train_output_indices, 
+            
+            df_normal_val_input_indices, 
+            df_normal_val_output_indices, 
+            
+            df_normal_test_input_indices, 
+            df_normal_test_output_indices
+        ) = prepare_sliding_windows(df_train=df_normal_train, df_val=df_normal_val, df_test=df_normal_test)
 
-    hf.create_dataset("df_attack", data=df_attack.values)
+        group = group_normal.create_group(f"client-{index}")
+        group.attrs["columns"] = list(client.columns)
+        group.attrs["inputs"] = list(set(client.columns) - set(["Normal/Attack"]))
+        group.attrs["outputs"] = [column for column in list(client.columns) if bool(sensor_re.match(column))]
 
-    hf.create_dataset("df_attack_input_indices", data=df_attack_input_indices)
-    hf.create_dataset("df_attack_output_indices", data=df_attack_output_indices)
+        group.create_dataset("df_normal_train", data=df_normal_train.values)
+        group.create_dataset("df_normal_val", data=df_normal_val.values)
+        group.create_dataset("df_normal_test", data=df_normal_test.values)
 
+        group.create_dataset("df_normal_train_input_indices", data=df_normal_train_input_indices)
+        group.create_dataset("df_normal_train_output_indices", data=df_normal_train_output_indices)
+
+        group.create_dataset("df_normal_val_input_indices", data=df_normal_val_input_indices)
+        group.create_dataset("df_normal_val_output_indices", data=df_normal_val_output_indices)
+
+        group.create_dataset("df_normal_test_input_indices", data=df_normal_test_input_indices)
+        group.create_dataset("df_normal_test_output_indices", data=df_normal_test_output_indices)
+    
+    for index, client in enumerate(clients_attack, start=1):
+
+        (
+            df_attack_input_indices,
+            df_attack_output_indices
+        ) = prepare_sliding_windows(df_test=client)
+
+        group = group_attack.create_group(f"client-{index}")
+        group.attrs["columns"] = list(client.columns)
+        group.attrs["inputs"] = list(set(client.columns) - set(["Normal/Attack"]))
+        group.attrs["outputs"] = [column for column in list(client.columns) if bool(sensor_re.match(column))]
+
+        group.create_dataset("df_attack", data=df_attack.values)
+
+        group.create_dataset("df_attack_input_indices", data=df_attack_input_indices)
+        group.create_dataset("df_attack_output_indices", data=df_attack_output_indices)
+    
     hf.close()
