@@ -17,8 +17,6 @@ def clear_wandb_cache():
 
 def configure_log(level: int = logging.INFO):
 
-    _log_levels = [0, 10, 20, 30, 40, 50]
-
     logging.basicConfig(
         format="[%(asctime)s][%(levelname)s] %(message)s",
         datefmt="%H:%M:%S",
