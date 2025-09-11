@@ -1,4 +1,4 @@
-import config
+from config import *
 import utils
 from constants import *
 from models import WideDeepNetworkDAICS, ThresholdNetworkDAICS
@@ -104,7 +104,7 @@ class Server:
 
         session_id = str(int(datetime.now().timestamp()))
 
-        run = config.WandbConfig.init_run(f"Wide Deep Network")
+        run = config.WandbConfig.init_run(f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network")
 
         map_clients_ids = {str(client): f"{'-'.join(client.normal_inputs)}" for index, client in enumerate(self.clients, start=1)}
 

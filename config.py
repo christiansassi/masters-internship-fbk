@@ -25,8 +25,13 @@ GPU: bool = True
 WANDB: bool = True
 
 if GPU:
+
+    GPU = False
+
     for gpu in tf.config.experimental.list_physical_devices("GPU"):
         tf.config.experimental.set_memory_growth(gpu, True)
+        GPU = True
+
 else:
     tf.config.set_visible_devices([], "GPU")
 
