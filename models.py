@@ -150,8 +150,9 @@ class ThresholdNetworkDAICS(keras.Model):
 
         self.window_past = window_past
         self.window_present = window_present
+        self.n_inputs = 1
 
-        self.conv1 = layers.Conv1D(2, 2, activation="relu")
+        self.conv1 = layers.Conv1D(2, 2, activation="relu", input_shape=(window_past, 1))
         self.pool1 = layers.MaxPool1D(2)
         self.conv2 = layers.Conv1D(4, 2, activation="relu")
         self.pool2 = layers.MaxPool1D(2)
@@ -159,19 +160,19 @@ class ThresholdNetworkDAICS(keras.Model):
         self.flatten = layers.Flatten()
         self.fc_out = layers.Dense(1, activation="relu")
 
-        self.compile(optimizer=keras.optimizers.SGD(learning_rate=0.01), loss="mse")
+        self.compile(
+            optimizer=keras.optimizers.SGD(learning_rate=0.01),
+            loss="mse"
+        )
 
     def call(self, inputs, training=False):
-
-        # inputs: (B, W_in, 1) prediction errors
         x = self.conv1(inputs)
         x = self.pool1(x)
         x = self.conv2(x)
         x = self.pool2(x)
         x = self.flatten(x)
         out = self.fc_out(x)
-
-        return out  # (B, 1)
+        return out
 
     def clone(self):
         clone = ThresholdNetworkDAICS(self.window_past, self.window_present)
@@ -189,3 +190,20 @@ class ThresholdNetworkDAICS(keras.Model):
         )
 
         return clone
+    
+    def save(self, *args, **kwargs):
+        
+        dummy = tf.zeros((1, self.window_past, self.n_inputs))
+        _ = self(dummy) 
+
+        super().save(*args, **kwargs)
+
+    def get_config(self):
+        return {
+            "window_past": self.window_past,
+            "window_present": self.window_present,
+        }
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)

@@ -4,10 +4,18 @@ from constants import *
 from generators import SlidingWindowGenerator
 from models import WideDeepNetworkDAICS, ThresholdNetworkDAICS
 
+from os import listdir
+from os.path import isfile
+
+import pickle
+
 import h5py
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
 from uuid import uuid4
+
+import scipy
 
 import tensorflow as tf
 
@@ -24,6 +32,8 @@ def pad_client_df_to_global(df_client: np.ndarray, client_inputs: list[str]) -> 
 class Client:
     def __init__(
         self,
+
+        client_id: str,
 
         df_train: np.ndarray,
         df_val: np.ndarray,
@@ -51,7 +61,7 @@ class Client:
         wide_deep_network: WideDeepNetworkDAICS = None,
         threshold_network: ThresholdNetworkDAICS = None
     ):
-        self.id = str(uuid4())
+        self.id = str(uuid4()) if client_id is None else client_id
 
         self.df_train = df_train
         self.df_val = df_val
@@ -147,7 +157,7 @@ class Client:
             )
 
             self.threshold_network.build(
-                input_shape=(None, WINDOW_PAST, len(self.normal_inputs))
+                input_shape=(None, WINDOW_PAST, 1)
             )
 
             self.threshold_network.compile(
@@ -197,10 +207,138 @@ class Client:
 
         return self.wide_deep_score
 
-    def set_wide_deep_network(self, wide_deep_network: WideDeepNetworkDAICS) -> float:
+    def set_wide_deep_network(self, wide_deep_network: WideDeepNetworkDAICS):
 
         self.wide_deep_network = wide_deep_network.clone()
         self.wide_deep_network.set_mask(self.mask_indices, WINDOW_PRESENT)
+
+    def get_wide_deep_network(self) -> WideDeepNetworkDAICS:
+        return self.wide_deep_network.clone()
+    
+    def load_wide_deep_network(self, weights_file: str):
+
+        self.wide_deep_network = WideDeepNetworkDAICS(
+            window_past=WINDOW_PAST,
+            window_present=WINDOW_PRESENT,
+            n_inputs=len(GLOBAL_INPUTS),
+            n_outputs=len(GLOBAL_OUTPUTS)
+        )
+
+        self.wide_deep_network.build(
+            input_shape=(None, WINDOW_PAST, len(GLOBAL_INPUTS))
+        )
+
+        self.wide_deep_network.load_weights(weights_file)
+        
+        self.wide_deep_network.compile(
+            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
+            loss=LOSS
+        )
+        
+        self.wide_deep_network.set_mask(self.mask_indices, WINDOW_PRESENT)
+
+    def train_threshold_network(self):
+
+        def craft_x_and_y(df):
+
+            y_true = np.concatenate([y for _, y in df], axis=0)[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]]
+            y_pred = self.wide_deep_network.predict(
+                df, 
+                
+                verbose=config.PREDICT_VERBOSE
+            )[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]]
+
+            y_true = y_true[:, 0, :]
+            y_pred = y_pred[:, 0, :]
+
+            errors = np.mean((y_pred - y_true) ** 2, axis=1)
+            errors = scipy.signal.medfilt(errors, kernel_size=MED_FILTER_LAG)
+            
+            y = errors[WINDOW_PAST + HORIZON - 1:]
+            x = sliding_window_view(errors, window_shape=WINDOW_PAST)[:len(y)][..., None]
+
+            return x, y
+        
+        x_train, y_train = craft_x_and_y(df=self.wide_deep_train)
+        x_val, y_val = craft_x_and_y(df=self.wide_deep_val)
+
+        history = self.threshold_network.fit(
+            x_train, y_train,
+
+            validation_data=(x_val, y_val),
+
+            batch_size=BATCH_SIZE,
+            epochs=THRESHOLD_EPOCHS,
+
+            shuffle=True,
+
+            verbose=config.TRAIN_VERBOSE
+        )
+
+        return -history.history["loss"][-1], -history.history["val_loss"][-1]
+    
+    def eval_threshold_network(self):
+
+        def craft_x_and_y(df):
+
+            y_true = np.concatenate([y for _, y in df], axis=0)[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]]
+            y_pred = self.wide_deep_network.predict(
+                df, 
+                
+                verbose=config.PREDICT_VERBOSE
+            )[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]]
+
+            y_true = y_true[:, 0, :]
+            y_pred = y_pred[:, 0, :]
+
+            errors = np.mean((y_pred - y_true) ** 2, axis=1)
+            errors = scipy.signal.medfilt(errors, kernel_size=MED_FILTER_LAG)
+
+            y = errors[WINDOW_PAST + HORIZON - 1:]
+            errors = scipy.signal.medfilt(errors, kernel_size=MED_FILTER_LAG)
+            
+            y = sliding_window_view(errors[WINDOW_PAST + HORIZON - 1:], window_shape=WINDOW_PRESENT)
+            x = sliding_window_view(errors, window_shape=WINDOW_PAST)[:len(y)][..., None]
+
+            return x, y
+        
+        x_test, y_test = craft_x_and_y(df=self.wide_deep_test)
+
+        score = self.threshold_network.evaluate(
+            x_test, y_test,
+
+            batch_size=BATCH_SIZE,
+
+            verbose=config.EVAL_VERBOSE
+        )
+        
+        self.threshold_score = -score
+
+        return -self.threshold_score
+
+    def set_threshold_network(self, threshold_network: ThresholdNetworkDAICS):
+        self.threshold_network = threshold_network.clone()
+
+    def get_threshold_network(self) -> ThresholdNetworkDAICS:
+        return self.threshold_network.clone()
+    
+    def load_threshold_network(self, weights_file: str):
+
+        self.threshold_network = ThresholdNetworkDAICS(
+            window_past=WINDOW_PAST,
+            window_present=WINDOW_PRESENT
+        )
+
+        self.threshold_network.build(
+            input_shape=(None, WINDOW_PAST, 1)
+        )
+
+        self.wide_deep_network.load_weights(weights_file)
+
+        self.threshold_network.compile(
+            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE),
+            loss=LOSS
+        )
 
 def generate_non_iid_clients(wide_deep_network = None,threshold_network = None) -> list[Client]:
 
@@ -243,6 +381,8 @@ def generate_non_iid_clients(wide_deep_network = None,threshold_network = None) 
         real_input_indices, real_output_indices = truncate_windows(real_input_indices, real_output_indices)
 
         client = Client(
+            client_id=None,
+
             df_train=df_train,
             df_val=df_val,
             df_test=df_test,

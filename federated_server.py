@@ -20,25 +20,29 @@ class Server:
         
         self.clients = clients
 
-        if wide_deep_network is None:
-            self.wide_deep_network = WideDeepNetworkDAICS(
-                window_past=WINDOW_PAST,
-                window_present=WINDOW_PRESENT,
-                n_inputs=len(GLOBAL_INPUTS),
-                n_outputs=len(GLOBAL_OUTPUTS)
-            )
+        self.wide_deep_network = WideDeepNetworkDAICS(
+            window_past=WINDOW_PAST,
+            window_present=WINDOW_PRESENT,
+            n_inputs=len(GLOBAL_INPUTS),
+            n_outputs=len(GLOBAL_OUTPUTS)
+        )
 
-            self.wide_deep_network.build(
-                input_shape=(None, WINDOW_PAST, len(GLOBAL_INPUTS))
-            )
-
-            self.wide_deep_network.compile(
-                optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-                loss=LOSS
-            )
+        self.wide_deep_network.build(
+            input_shape=(None, WINDOW_PAST, len(GLOBAL_INPUTS))
+        )
         
-        else:
-            self.wide_deep_network = wide_deep_network.clone()
+        self.wide_deep_network.compile(
+            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
+            loss=LOSS
+        )
+        
+        if wide_deep_network is not None:
+            self.wide_deep_network.load_weights(wide_deep_network)
+            
+        self.wide_deep_network.compile(
+            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
+            loss=LOSS
+        )
 
         self.wide_deep_score = 0
 
@@ -154,13 +158,13 @@ class Server:
             for index, client in enumerate(self.clients):
                 print(f"{utils.log_timestamp_status()} Evaluating {index + 1} / {len(self.clients)}", end="\r")
 
-                score = client.eval_wide_deep_network(wide_deep_network=self.wide_deep_network)
+                eval_loss = client.eval_wide_deep_network(wide_deep_network=self.wide_deep_network)
 
                 client_id = map_clients_ids[str(client)]
 
-                losses[client_id]["eval_loss"] = score
+                losses[client_id]["eval_loss"] = eval_loss
     
-                self.wide_deep_score = self.wide_deep_score + score
+                self.wide_deep_score = self.wide_deep_score + eval_loss
             
             self.wide_deep_score = self.wide_deep_score / len(self.clients)
 
@@ -211,5 +215,58 @@ class Server:
         makedirs(name=WIDE_DEEP_NETWORK, exist_ok=True)
 
         self.wide_deep_network.save_weights(filepath=f"{join(WIDE_DEEP_NETWORK, WIDE_DEEP_NETWORK_BASENAME)}-{session_id}.h5")
+
+        run.finish()
+    
+    def train_threshold_networks(self):
+
+        run = config.WandbConfig.init_run(f"[{'GPU' if GPU else 'CPU'}] Threshold Network")
+
+        losses = {str(client): {
+            "train_loss": float("-inf"),
+            "val_loss": float("-inf"),
+            "eval_loss": float("-inf")
+        } for client in self.clients}
+
+        for index, client in enumerate(self.clients):
+
+            # Train
+            print(" "*50, end="\r")
+            print(f"{utils.log_timestamp_status()} Training {index + 1} / {len(self.clients)}", end="\r")
+            train_loss, val_loss = client.train_threshold_network()
+
+            # Evaluate
+            print(" "*50, end="\r")
+            print(f"{utils.log_timestamp_status()} Evaluating {index + 1} / {len(self.clients)}", end="\r")
+            eval_loss = client.eval_threshold_network()
+
+            # Save score
+            losses[str(client)]["train_loss"] = train_loss
+            losses[str(client)]["val_loss"] = val_loss
+            losses[str(client)]["eval_loss"] = eval_loss
+
+            # Save model
+            makedirs(name=THRESHOLD_NETWORKS_CHECKPOINT, exist_ok=True)
+
+            client.threshold_network.save_weights(filepath=join(THRESHOLD_NETWORKS_CHECKPOINT, f"threshold-network-{str(client)}.h5"))
+
+        bar_plots = {}
+
+        for key, label in [("train_loss", "Train"), ("val_loss", "Validation"), ("eval_loss", "Evaluation")]:
+
+            data = [[f"{'-'.join(sorted(client.normal_inputs))}", losses[str(client)][key]] for client in self.clients]
+
+            table = config.WandbConfig.table(data=data, columns=["client", "loss"])
+
+            bar_plot = config.WandbConfig.plot_bar(
+                table=table,
+                label="client",
+                value="loss",
+                title=f"{label} Loss"
+            )
+
+            bar_plots[key] = bar_plot
+
+        run.log(bar_plots)
 
         run.finish()

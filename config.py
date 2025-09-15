@@ -21,6 +21,8 @@ from types import SimpleNamespace
 
 TRAIN_VERBOSE: int = 0
 EVAL_VERBOSE: int = 0
+PREDICT_VERBOSE: int = 0
+
 GPU: bool = True
 WANDB: bool = True
 
@@ -35,6 +37,9 @@ if GPU:
 else:
     tf.config.set_visible_devices([], "GPU")
 
+if WANDB:        
+    import wandb
+
 class WandbConfig:
 
     ENTITY: str = os.getenv("ENTITY")
@@ -45,8 +50,6 @@ class WandbConfig:
 
         if WANDB:
             
-            import wandb
-
             return wandb.init(
                 entity=cls.ENTITY,
                 project=cls.PROJECT,
@@ -60,6 +63,24 @@ class WandbConfig:
             run.finish = lambda *args: None
 
             return run
+    
+    @classmethod
+    def table(cls, *args, **kwargs):
+
+        if WANDB:
+            return wandb.Table(*args, **kwargs)
+
+        else:
+            return None
+    
+    @classmethod
+    def plot_bar(cls, *args, **kwargs):
+
+        if WANDB:
+            return wandb.plot.bar(*args, **kwargs)
+
+        else:
+            return None
     
     @staticmethod
     def safe_log(func):
