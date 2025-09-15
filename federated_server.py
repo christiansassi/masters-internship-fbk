@@ -248,7 +248,7 @@ class Server:
             # Save model
             makedirs(name=THRESHOLD_NETWORKS_CHECKPOINT, exist_ok=True)
 
-            client.threshold_network.save_weights(filepath=join(THRESHOLD_NETWORKS_CHECKPOINT, f"threshold-network-{str(client)}.h5"))
+            client.threshold_network.save_weights(filepath=join(THRESHOLD_NETWORKS_CHECKPOINT, f"{THRESHOLD_NETWORK_BASENAME}-{str(client)}.h5"))
 
         bar_plots = {}
 
