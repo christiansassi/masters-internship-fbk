@@ -26,5 +26,6 @@ if __name__ == "__main__":
         server.train_threshold_networks()
     
     # Simulation
-    for client in clients:
-        client.run_simulation_v1()
+    if config.SIMULATION:
+        for client in clients:
+            client.run_simulation_v1()
