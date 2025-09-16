@@ -314,7 +314,7 @@ class Client:
         
         self.threshold_score = -score
 
-        return -self.threshold_score
+        return self.threshold_score
 
     def set_threshold_network(self, threshold_network: ThresholdNetworkDAICS):
         self.threshold_network = threshold_network.clone()

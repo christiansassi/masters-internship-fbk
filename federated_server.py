@@ -231,13 +231,11 @@ class Server:
         for index, client in enumerate(self.clients):
 
             # Train
-            print(" "*50, end="\r")
-            print(f"{utils.log_timestamp_status()} Training {index + 1} / {len(self.clients)}", end="\r")
+            print(f"{utils.log_timestamp_status()} Training {index + 1} / {len(self.clients)}")
             train_loss, val_loss = client.train_threshold_network()
 
             # Evaluate
-            print(" "*50, end="\r")
-            print(f"{utils.log_timestamp_status()} Evaluating {index + 1} / {len(self.clients)}", end="\r")
+            print(f"{utils.log_timestamp_status()} Evaluating {index + 1} / {len(self.clients)}")
             eval_loss = client.eval_threshold_network()
 
             # Save score
