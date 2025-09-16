@@ -183,7 +183,7 @@ class Server:
                 # Save the checkpoint
                 makedirs(name=WIDE_DEEP_NETWORK_CHECKPOINT, exist_ok=True)
 
-                best_wide_deep_network.save_weights(filepath=f"{join(WIDE_DEEP_NETWORK_CHECKPOINT, WIDE_DEEP_NETWORK_BASENAME)}-{session_id}.h5")
+                best_wide_deep_network.save_weights(filepath=join(WIDE_DEEP_NETWORK_CHECKPOINT, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.h5"))
 
             else:
                 stop_counter = stop_counter + 1
@@ -214,7 +214,7 @@ class Server:
         
         makedirs(name=WIDE_DEEP_NETWORK, exist_ok=True)
 
-        self.wide_deep_network.save_weights(filepath=f"{join(WIDE_DEEP_NETWORK, WIDE_DEEP_NETWORK_BASENAME)}-{session_id}.h5")
+        self.wide_deep_network.save_weights(filepath=join(WIDE_DEEP_NETWORK, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.h5"))
 
         run.finish()
     
@@ -244,9 +244,9 @@ class Server:
             losses[str(client)]["eval_loss"] = eval_loss
 
             # Save model
-            makedirs(name=THRESHOLD_NETWORKS_CHECKPOINT, exist_ok=True)
+            makedirs(name=THRESHOLD_NETWORK_CHECKPOINT, exist_ok=True)
 
-            client.threshold_network.save_weights(filepath=join(THRESHOLD_NETWORKS_CHECKPOINT, f"{THRESHOLD_NETWORK_BASENAME}-{str(client)}.h5"))
+            client.threshold_network.save_weights(filepath=join(THRESHOLD_NETWORK_CHECKPOINT, f"{THRESHOLD_NETWORK_BASENAME}-{str(client)}.h5"))
 
         bar_plots = {}
 
