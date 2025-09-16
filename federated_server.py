@@ -31,14 +31,9 @@ class Server:
             input_shape=(None, WINDOW_PAST, len(GLOBAL_INPUTS))
         )
         
-        self.wide_deep_network.compile(
-            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-            loss=LOSS
-        )
-        
         if wide_deep_network is not None:
             self.wide_deep_network.load_weights(wide_deep_network)
-            
+
         self.wide_deep_network.compile(
             optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
             loss=LOSS
@@ -113,7 +108,7 @@ class Server:
         map_clients_ids = {str(client): f"{'-'.join(sorted(client.normal_inputs))}" for index, client in enumerate(self.clients, start=1)}
 
         losses = {client: {
-            "loss": float("-inf"),
+            "train_loss": float("-inf"),
             "val_loss": float("-inf"),
             "eval_loss": float("-inf")
         } for client in map_clients_ids.values()}
@@ -143,7 +138,7 @@ class Server:
 
                 client_id = map_clients_ids[str(client)]
 
-                losses[client_id]["loss"] = loss
+                losses[client_id]["train_loss"] = loss
                 losses[client_id]["val_loss"] = val_loss
 
             logging.info(f"Trained {len(selected_clients)} clients")
@@ -222,11 +217,13 @@ class Server:
 
         run = config.WandbConfig.init_run(f"[{'GPU' if GPU else 'CPU'}] Threshold Network")
 
-        losses = {str(client): {
+        map_clients_ids = {str(client): f"{'-'.join(sorted(client.normal_inputs))}" for index, client in enumerate(self.clients, start=1)}
+
+        losses = {client: {
             "train_loss": float("-inf"),
             "val_loss": float("-inf"),
             "eval_loss": float("-inf")
-        } for client in self.clients}
+        } for client in map_clients_ids.values()}
 
         for index, client in enumerate(self.clients):
 
@@ -239,9 +236,11 @@ class Server:
             eval_loss = client.eval_threshold_network()
 
             # Save score
-            losses[str(client)]["train_loss"] = train_loss
-            losses[str(client)]["val_loss"] = val_loss
-            losses[str(client)]["eval_loss"] = eval_loss
+            client_id = map_clients_ids[str(client)]
+
+            losses[client_id]["train_loss"] = train_loss
+            losses[client_id]["val_loss"] = val_loss
+            losses[client_id]["eval_loss"] = eval_loss
 
             # Save model
             makedirs(name=THRESHOLD_NETWORK_CHECKPOINT, exist_ok=True)
@@ -252,7 +251,7 @@ class Server:
 
         for key, label in [("train_loss", "Train"), ("val_loss", "Validation"), ("eval_loss", "Evaluation")]:
 
-            data = [[f"{'-'.join(sorted(client.normal_inputs))}", losses[str(client)][key]] for client in self.clients]
+            data = [[map_clients_ids[str(client)], losses[str(client)][key]] for client in self.clients]
 
             table = config.WandbConfig.table(data=data, columns=["client", "loss"])
 

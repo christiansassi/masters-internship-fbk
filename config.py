@@ -19,6 +19,9 @@ dotenv.load_dotenv()
 
 from types import SimpleNamespace
 
+WIDE_DEEP_NETWORK: bool = False
+THRESHOLD_NETWORK: bool = False
+
 TRAIN_VERBOSE: int = 1
 EVAL_VERBOSE: int = 1
 PREDICT_VERBOSE: int = 1
