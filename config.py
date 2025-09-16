@@ -27,7 +27,7 @@ EVAL_VERBOSE: int = 1
 PREDICT_VERBOSE: int = 1
 
 GPU: bool = False
-WANDB: bool = True
+WANDB: bool = False
 
 if GPU:
 

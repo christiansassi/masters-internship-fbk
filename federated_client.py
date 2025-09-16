@@ -10,6 +10,8 @@ import h5py
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
+import pickle
+
 import uuid
 
 import scipy
@@ -49,11 +51,8 @@ class Client:
         real_input_indices: np.ndarray,
         real_output_indices: np.ndarray,
 
-        normal_inputs: list[str],
-        normal_outputs: list[str],
-
-        attack_inputs: list[str],
-        attack_outputs: list[str],
+        inputs: list[str],
+        outputs: list[str],
 
         wide_deep_network: WideDeepNetworkDAICS = None,
         threshold_network: ThresholdNetworkDAICS = None
@@ -84,13 +83,10 @@ class Client:
         self.real_input_indices = real_input_indices
         self.real_output_indices = real_output_indices
 
-        self.normal_inputs = normal_inputs
-        self.normal_outputs = normal_outputs
+        self.inputs = inputs
+        self.outputs = outputs
 
-        self.attack_inputs = attack_inputs
-        self.attack_outputs = attack_outputs
-
-        self.mask_indices = [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]
+        self.mask_indices = [GLOBAL_OUTPUTS.index(tag) for tag in self.outputs]
         
         # Wide Deep Network
         self.wide_deep_network = WideDeepNetworkDAICS(
@@ -118,34 +114,49 @@ class Client:
         self.wide_deep_steps = 0
         self.wide_deep_score = 0
 
-        self.wide_deep_train = pad_client_df_to_global(self.df_train, self.normal_inputs)
+        self.wide_deep_train = pad_client_df_to_global(self.df_train, self.inputs)
         self.wide_deep_train = SlidingWindowGenerator(
-            x= self.wide_deep_train,
-            y= self.wide_deep_train[:, [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]],
+            x=self.wide_deep_train,
+            y=self.wide_deep_train[:, [GLOBAL_OUTPUTS.index(tag) for tag in self.outputs]],
+            labels=np.zeros(len(self.wide_deep_train), dtype=np.int32),
             input_indices=self.train_input_indices,
             output_indices=self.train_output_indices,
             batch_size=BATCH_SIZE,
-            outputs=self.normal_outputs
+            outputs=self.outputs
         )
 
-        self.wide_deep_val = pad_client_df_to_global(self.df_val, self.normal_inputs)
+        self.wide_deep_val = pad_client_df_to_global(self.df_val, self.inputs)
         self.wide_deep_val = SlidingWindowGenerator(
             x=self.wide_deep_val,
-            y=self.wide_deep_val[:, [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]],
+            y=self.wide_deep_val[:, [GLOBAL_OUTPUTS.index(tag) for tag in self.outputs]],
+            labels=np.zeros(len(self.wide_deep_val), dtype=np.int32),
             input_indices=self.val_input_indices,
             output_indices=self.val_output_indices,
             batch_size=BATCH_SIZE,
-            outputs=self.normal_outputs
+            outputs=self.outputs
         )
 
-        self.wide_deep_test = pad_client_df_to_global(self.df_test, self.normal_inputs)
+        self.wide_deep_test = pad_client_df_to_global(self.df_test, self.inputs)
         self.wide_deep_test = SlidingWindowGenerator(
             x=self.wide_deep_test,
-            y=self.wide_deep_test[:, [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]],
+            y=self.wide_deep_test[:, [GLOBAL_OUTPUTS.index(tag) for tag in self.outputs]],
+            labels=np.zeros(len(self.wide_deep_test), dtype=np.int32),
             input_indices=self.test_input_indices,
             output_indices=self.test_output_indices,
             batch_size=BATCH_SIZE,
-            outputs=self.normal_outputs
+            outputs=self.outputs
+        )
+
+        self.wide_deep_real = pad_client_df_to_global(self.df_real, self.inputs)
+        self.wide_deep_real = SlidingWindowGenerator(
+            x=self.wide_deep_real,
+            y=self.wide_deep_real[:, [GLOBAL_OUTPUTS.index(tag) for tag in self.outputs]],
+            labels=self.all_labels,
+            input_indices=self.real_input_indices,
+            output_indices=self.real_output_indices,
+            batch_size=BATCH_SIZE,
+            outputs=self.outputs,
+            shuffle=False
         )
 
         # Threshold Network
@@ -235,30 +246,43 @@ class Client:
         
         self.wide_deep_network.set_mask(self.mask_indices, WINDOW_PRESENT)
 
-    def train_threshold_network(self):
+    def _craft_x_and_y(self, df):
 
-        def craft_x_and_y(df):
+        y_true = []
+        labels = []
 
-            y_true = np.concatenate([y for _, y in df], axis=0)[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]]
-            y_pred = self.wide_deep_network.predict(
-                df, 
-                
-                verbose=config.PREDICT_VERBOSE
-            )[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]]
+        for index in range(len(df)):
+            _, y, label = df.get_item_with_label(index)
 
-            y_true = y_true[:, 0, :]
-            y_pred = y_pred[:, 0, :]
+            y_true.append(y)
+            labels.append(label)
 
-            errors = np.mean((y_pred - y_true) ** 2, axis=1)
-            errors = scipy.signal.medfilt(errors, kernel_size=MED_FILTER_LAG)
-            
-            y = errors[WINDOW_PAST + HORIZON - 1:]
-            x = sliding_window_view(errors, window_shape=WINDOW_PAST)[:len(y)][..., None]
+        y_true = np.concatenate(y_true, axis=0)[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.outputs]]
+        labels = np.concatenate(labels, axis=0)[:, 0]
 
-            return x, y
+        y_pred = self.wide_deep_network.predict(
+            df, 
+
+            verbose=config.PREDICT_VERBOSE
+        )[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.outputs]]
+
+        y_true = y_true[:, 0, :]
+        y_pred = y_pred[:, 0, :]
+
+        errors = np.mean((y_pred - y_true) ** 2, axis=1)
+        errors = scipy.signal.medfilt(errors, kernel_size=MED_FILTER_LAG)
         
-        x_train, y_train = craft_x_and_y(df=self.wide_deep_train)
-        x_val, y_val = craft_x_and_y(df=self.wide_deep_val)
+        y = errors[WINDOW_PAST + HORIZON - 1:]
+        labels = labels[WINDOW_PAST + HORIZON - 1:]
+
+        x = sliding_window_view(errors, window_shape=WINDOW_PAST)[:len(y)][..., None]
+
+        return x, y, labels
+    
+    def train_threshold_network(self):
+        
+        x_train, y_train, _ = self._craft_x_and_y(df=self.wide_deep_train)
+        x_val, y_val, _ = self._craft_x_and_y(df=self.wide_deep_val)
 
         history = self.threshold_network.fit(
             x_train, y_train,
@@ -276,31 +300,8 @@ class Client:
         return -history.history["loss"][-1], -history.history["val_loss"][-1]
     
     def eval_threshold_network(self):
-
-        def craft_x_and_y(df):
-
-            y_true = np.concatenate([y for _, y in df], axis=0)[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]]
-            y_pred = self.wide_deep_network.predict(
-                df, 
-                
-                verbose=config.PREDICT_VERBOSE
-            )[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.normal_outputs]]
-
-            y_true = y_true[:, 0, :]
-            y_pred = y_pred[:, 0, :]
-
-            errors = np.mean((y_pred - y_true) ** 2, axis=1)
-            errors = scipy.signal.medfilt(errors, kernel_size=MED_FILTER_LAG)
-
-            y = errors[WINDOW_PAST + HORIZON - 1:]
-            errors = scipy.signal.medfilt(errors, kernel_size=MED_FILTER_LAG)
-            
-            y = sliding_window_view(errors[WINDOW_PAST + HORIZON - 1:], window_shape=WINDOW_PRESENT)
-            x = sliding_window_view(errors, window_shape=WINDOW_PAST)[:len(y)][..., None]
-
-            return x, y
         
-        x_test, y_test = craft_x_and_y(df=self.wide_deep_test)
+        x_test, y_test, _ = self._craft_x_and_y(df=self.wide_deep_test)
 
         score = self.threshold_network.evaluate(
             x_test, y_test,
@@ -337,6 +338,21 @@ class Client:
             optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE),
             loss=LOSS
         )
+    
+    def run_simulation_v1(self):
+        
+        cache_file = join(CACHE, f"{self.id}.pkl")
+
+        if not isfile(cache_file):
+            x, y, labels = self._craft_x_and_y(df=self.wide_deep_real)
+
+            with open(cache_file, "wb+") as f:
+                pickle.dump((x, y, labels), f)
+        
+        else:
+
+            with open(cache_file, "rb") as f:
+                x, y = pickle.load(f)
 
 def generate_non_iid_clients(wide_deep_network: str = None) -> list[Client]:
 
@@ -406,11 +422,8 @@ def generate_non_iid_clients(wide_deep_network: str = None) -> list[Client]:
             real_input_indices=real_input_indices,
             real_output_indices=real_output_indices,
 
-            normal_inputs=normal_data.attrs["inputs"][:],
-            normal_outputs=normal_data.attrs["outputs"][:],
-
-            attack_inputs=attack_data.attrs["inputs"][:],
-            attack_outputs=attack_data.attrs["outputs"][:],
+            inputs=normal_data.attrs["inputs"][:],
+            outputs=normal_data.attrs["outputs"][:],
 
             wide_deep_network=wide_deep_network,
             threshold_network=threshold_network,

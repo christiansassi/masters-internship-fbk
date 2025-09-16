@@ -105,7 +105,7 @@ class Server:
 
         run = config.WandbConfig.init_run(f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network")
 
-        map_clients_ids = {str(client): f"{'-'.join(sorted(client.normal_inputs))}" for index, client in enumerate(self.clients, start=1)}
+        map_clients_ids = {str(client): f"{'-'.join(sorted(client.inputs))}" for index, client in enumerate(self.clients, start=1)}
 
         losses = {client: {
             "train_loss": float("-inf"),
@@ -217,7 +217,7 @@ class Server:
 
         run = config.WandbConfig.init_run(f"[{'GPU' if GPU else 'CPU'}] Threshold Network")
 
-        map_clients_ids = {str(client): f"{'-'.join(sorted(client.normal_inputs))}" for index, client in enumerate(self.clients, start=1)}
+        map_clients_ids = {str(client): f"{'-'.join(sorted(client.inputs))}" for index, client in enumerate(self.clients, start=1)}
 
         losses = {client: {
             "train_loss": float("-inf"),

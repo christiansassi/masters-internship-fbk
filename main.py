@@ -24,3 +24,7 @@ if __name__ == "__main__":
     # Threshold Network training (local)
     if config.THRESHOLD_NETWORK:
         server.train_threshold_networks()
+    
+    # Simulation
+    for client in clients:
+        client.run_simulation_v1()
