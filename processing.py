@@ -7,7 +7,6 @@ import numpy as np
 import h5py
 import pandas as pd
 
-import re
 from itertools import groupby
 
 def clean_dataset(src: str) -> pd.DataFrame:
@@ -155,8 +154,6 @@ if __name__ == "__main__":
     group_normal = hf.create_group(f"normal")
     group_attack = hf.create_group(f"attack")
 
-    sensor_re = re.compile(r"^(FIT|LIT|AIT|PIT|DPIT)\d{3}$", re.IGNORECASE)
-
     for index, client in enumerate(clients_normal, start=1):
 
         df_normal_train, df_normal_val, df_normal_test = split_train_val_test(df=client)
@@ -175,7 +172,7 @@ if __name__ == "__main__":
         group = group_normal.create_group(f"client-{index}")
         group.attrs["columns"] = list(client.columns)
         group.attrs["inputs"] = list(set(client.columns) - set(["Normal/Attack"]))
-        group.attrs["outputs"] = [column for column in list(client.columns) if bool(sensor_re.match(column))]
+        group.attrs["outputs"] = [column for column in list(client.columns) if column in GLOBAL_OUTPUTS]
 
         group.create_dataset("df_normal_train", data=df_normal_train.values)
         group.create_dataset("df_normal_val", data=df_normal_val.values)
@@ -200,7 +197,7 @@ if __name__ == "__main__":
         group = group_attack.create_group(f"client-{index}")
         group.attrs["columns"] = list(client.columns)
         group.attrs["inputs"] = list(set(client.columns) - set(["Normal/Attack"]))
-        group.attrs["outputs"] = [column for column in list(client.columns) if bool(sensor_re.match(column))]
+        group.attrs["outputs"] = [column for column in list(client.columns) if column in GLOBAL_OUTPUTS]
 
         group.create_dataset("df_attack", data=df_attack.values)
 

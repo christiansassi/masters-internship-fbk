@@ -27,5 +27,8 @@ if __name__ == "__main__":
     
     # Simulation
     if config.SIMULATION:
-        for client in clients:
-            client.run_simulation_v1()
+
+        clients[-1].run_simulation_v1()
+
+        # for client in clients:
+        #     client.run_simulation_v1()

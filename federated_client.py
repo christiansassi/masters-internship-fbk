@@ -339,20 +339,207 @@ class Client:
             loss=LOSS
         )
     
-    def run_simulation_v1(self):
+    def calculate_threshold_base(self):
+
+        all_errors = []
+
+        for df in [self.wide_deep_train, self.wide_deep_val, self.wide_deep_test]:
+
+            y_true = np.concatenate([y for _, y in df], axis=0)[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.outputs]]
+            y_pred = self.wide_deep_network.predict(
+                df, 
+
+                verbose=config.PREDICT_VERBOSE
+            )[:, :, [GLOBAL_OUTPUTS.index(tag) for tag in self.outputs]]
+
+            y_true = y_true[:, 0, :]
+            y_pred = y_pred[:, 0, :]
+
+            errors = np.mean((y_pred - y_true) ** 2, axis=1)
+
+            all_errors.extend(errors)
+
+        all_errors = scipy.signal.medfilt(all_errors, kernel_size=MED_FILTER_LAG)
         
+        return np.mean(all_errors) + np.std(all_errors)
+
+    def run_simulation_v1(self):
+
         cache_file = join(CACHE, f"{self.id}.pkl")
 
         if not isfile(cache_file):
+
             x, y, labels = self._craft_x_and_y(df=self.wide_deep_real)
+            t_base = self.calculate_threshold_base()
 
             with open(cache_file, "wb+") as f:
-                pickle.dump((x, y, labels), f)
+                pickle.dump((x, y, labels, t_base), f)
         
         else:
 
             with open(cache_file, "rb") as f:
-                x, y = pickle.load(f)
+                x, y, labels, t_base = pickle.load(f)
+
+        start = 1500
+
+        x = x[start:]
+        y = y[start:]
+        labels = labels[start:]
+
+        attacks = np.where(labels == 1)[0]
+        attacks = np.split(attacks, np.where(np.diff(attacks) != 1)[0] + 1)
+        attacks_index = 0
+
+        warnings = 0
+
+        stats = {
+            "true_positives": 0,
+            "true_negatives": 0,
+            "false_positives": 0,
+            "false_negatives": 0
+        }
+
+        flag = False
+
+        import matplotlib.pyplot as plt
+
+        plt.ion()
+        _, ax = plt.subplots()
+
+        window_size = 50
+        y_true_history = []
+        threshold_history = []
+        flags_history = []
+
+        index = -1
+        
+        negatives_x = []
+        negatives_y = []
+
+        while index < len(x):
+            
+            index = index + 1
+
+            errors_window = x[index][None, ...]
+            y_true_val = y[index].item()
+            y_pred_val = self.threshold_network.predict(errors_window, verbose=0).item()
+            label = labels[index]
+
+            threshold_val = y_pred_val
+
+            if y_true_val > threshold_val:
+                warnings = warnings + 1
+
+                if warnings >= W_ANOMALY:
+                    warnings = 0
+
+                    if label == 1 and index >= attacks[attacks_index][0]:
+                        
+                        #? TRUE POSITIVE
+                        stats["true_positives"] = stats["true_positives"] + 1
+                        flag = False
+
+                        # We are in an attack chunk
+                        # Skip to a normal one
+                        index = attacks[attacks_index][-1]
+                        attacks_index = attacks_index + 1
+
+                        flags_history = []
+                        y_true_history = []
+                        threshold_history = []
+
+                    elif index < attacks[attacks_index][0] and not flag:
+                        
+                        #? FALSE POSITIVE
+                        stats["false_positives"] = stats["false_positives"] + 1
+                        flag = True
+
+                        # We are in a normal chunk
+                        # Skip to an attack one
+                        # index = attacks[attacks_index][0]
+
+                        # flags_history = []
+                        # y_true_history = []
+                        # threshold_history = []
+
+            else:
+                warnings = max(0, warnings - 1)
+
+                if label == 1 and index >= attacks[attacks_index][-1]:
+
+                    warnings = 0
+
+                    #? FALSE NEGATIVE
+                    stats["false_negatives"] = stats["false_negatives"] + 1
+                    flag = False
+
+                    # We are in an attack chunk
+                    # Skip to a normal one
+                    index = attacks[attacks_index][-1]
+                    attacks_index = attacks_index + 1
+
+                    flags_history = []
+                    y_true_history = []
+                    threshold_history = []
+                
+                elif index == attacks[attacks_index][0] - 1 and not flag:
+
+                    #? TRUE NEGATIVE
+                    stats["true_negatives"] = stats["true_negatives"] + 1
+                    flag = True
+
+                    # We are in a normal chunk
+                    # Skip to an attack one
+                    # index = attacks[attacks_index][0]
+
+                    # flags_history = []
+                    # y_true_history = []
+                    # threshold_history = []
+
+                # fit
+                negatives_x.append(x[index])
+                negatives_y.append(y[index])
+
+                if len(negatives_x) == BATCH_SIZE:
+                    batch_x = np.stack(negatives_x, axis=0)
+                    batch_y = np.stack(negatives_y, axis=0)
+
+                    self.threshold_network.train_on_batch(batch_x, batch_y)
+
+                    negatives_x.clear()
+                    negatives_y.clear()
+            
+            flags_history.append(bool(label))
+            y_true_history.append(y_true_val)
+            threshold_history.append(threshold_val)
+
+            if len(y_true_history) > window_size:
+                flags_history = flags_history[-window_size:]
+                y_true_history = y_true_history[-window_size:]
+                threshold_history = threshold_history[-window_size:]
+
+            ax.clear()
+
+            x_vals = list(range(index - len(y_true_history) + 1, index + 1))
+
+            ax.plot(x_vals, y_true_history, "b-", label="y_true")
+
+            for point_x, point_y, f in zip(x_vals, y_true_history, flags_history):
+                color = "green" if not f else "red"
+                ax.scatter(x=point_x, y=point_y, color=color, s=50, zorder=5)
+
+            ax.plot(range(index - len(threshold_history) + 1, index + 1),
+                    threshold_history, "r--", label="threshold")
+
+            ax.set_xlabel("Index")
+            ax.set_ylabel("Error")
+            ax.set_title(f"Step {index}, label={label}")
+            ax.legend()
+
+            plt.pause(0.01)
+
+        plt.ioff()
+        plt.show()
 
 def generate_non_iid_clients(wide_deep_network: str = None) -> list[Client]:
 
@@ -430,6 +617,10 @@ def generate_non_iid_clients(wide_deep_network: str = None) -> list[Client]:
         )
 
         clients.append(client)
+
+        print(normal_data.attrs["inputs"][:])
+        print(normal_data.attrs["outputs"][:])
+        print("")
 
     hf.close()
 
