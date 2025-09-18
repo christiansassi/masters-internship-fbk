@@ -12,10 +12,10 @@ if __name__ == "__main__":
     utils.clear_console()
 
     # Instantiate clients
-    clients = generate_non_iid_clients(wide_deep_network=f"{join(WIDE_DEEP_NETWORK, WIDE_DEEP_NETWORK_BASENAME)}.h5")
+    clients = generate_non_iid_clients(wide_deep_network=f"{join(WIDE_DEEP_NETWORK, WIDE_DEEP_NETWORK_BASENAME)}.h5" if not config.WIDE_DEEP_NETWORK else None)
 
     # Instantiate server
-    server = Server(clients=clients, wide_deep_network=f"{join(WIDE_DEEP_NETWORK, WIDE_DEEP_NETWORK_BASENAME)}.h5")
+    server = Server(clients=clients, wide_deep_network=f"{join(WIDE_DEEP_NETWORK, WIDE_DEEP_NETWORK_BASENAME)}.h5"if not config.WIDE_DEEP_NETWORK else None)
 
     # Wide Deep Network training (federated)
     if config.WIDE_DEEP_NETWORK:
