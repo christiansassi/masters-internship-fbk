@@ -618,10 +618,6 @@ def generate_non_iid_clients(wide_deep_network: str = None) -> list[Client]:
 
         clients.append(client)
 
-        print(normal_data.attrs["inputs"][:])
-        print(normal_data.attrs["outputs"][:])
-        print("")
-
     hf.close()
 
     return clients
