@@ -251,7 +251,7 @@ class Server:
 
         for key, label in [("train_loss", "Train"), ("val_loss", "Validation"), ("eval_loss", "Evaluation")]:
 
-            data = [[map_clients_ids[str(client)], losses[str(client)][key]] for client in self.clients]
+            data = [[map_clients_ids[str(client)], losses[map_clients_ids[str(client)]][key]] for client in self.clients]
 
             table = config.WandbConfig.table(data=data, columns=["client", "loss"])
 
