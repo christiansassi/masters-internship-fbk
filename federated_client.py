@@ -4,6 +4,7 @@ from constants import *
 from generators import SlidingWindowGenerator
 from models import WideDeepNetworkDAICS, ThresholdNetworkDAICS
 
+from os import makedirs
 from os.path import isfile
 
 import h5py
@@ -364,6 +365,8 @@ class Client:
         return np.mean(all_errors) + np.std(all_errors)
 
     def run_simulation_v1(self):
+        
+        #TODO
 
         cache_file = join(CACHE, f"{self.id}.pkl")
 
@@ -371,6 +374,8 @@ class Client:
 
             x, y, labels = self._craft_x_and_y(df=self.wide_deep_real)
             t_base = self.calculate_threshold_base()
+
+            makedirs(CACHE, exist_ok=True)
 
             with open(cache_file, "wb+") as f:
                 pickle.dump((x, y, labels, t_base), f)
@@ -380,7 +385,8 @@ class Client:
             with open(cache_file, "rb") as f:
                 x, y, labels, t_base = pickle.load(f)
 
-        start = 1500
+        start = 0
+        # end = 2574
 
         x = x[start:]
         y = y[start:]
@@ -402,6 +408,45 @@ class Client:
         flag = False
 
         import matplotlib.pyplot as plt
+
+        folder = join("clients", self.id)
+
+        makedirs(folder, exist_ok=True)
+
+        for index, attack in enumerate(attacks, start=1):
+            offset = 100
+            start_idx = attack[0] - offset
+            end_idx = attack[-1] + offset
+
+            points = y[start_idx:end_idx + 1]
+            x = np.arange(len(points))
+
+            # Plot black line
+            plt.plot(x, points, color="black")
+
+            # Shade background
+            plt.axvspan(offset, offset + len(attack) - 1, color="red", alpha=0.2, label="Attack region")
+            plt.axvspan(0, offset, color="green", alpha=0.1, label="Normal region")
+            plt.axvspan(offset + len(attack), len(points) - 1, color="green", alpha=0.1)
+
+            # Markers
+            attack_x = np.arange(offset, offset + len(attack))
+            attack_y = points[attack_x]
+            plt.scatter(attack_x, attack_y, color="red")
+
+            normal_x = np.concatenate((x[:offset], x[offset + len(attack):]))
+            normal_y = np.concatenate((points[:offset], points[offset + len(attack):]))
+            plt.scatter(normal_x, normal_y, color="green")
+
+            plt.xlabel("Time")
+            plt.ylabel("Error")
+            plt.title(f"Attack #{index}")
+            plt.grid(True)
+            plt.legend()
+            plt.savefig(join(folder, f"attack_{index}.png"), dpi=300, bbox_inches="tight")
+            plt.close()
+
+        return
 
         plt.ion()
         _, ax = plt.subplots()
@@ -425,7 +470,7 @@ class Client:
             y_pred_val = self.threshold_network.predict(errors_window, verbose=0).item()
             label = labels[index]
 
-            threshold_val = y_pred_val
+            threshold_val = y_pred_val + t_base
 
             if y_true_val > threshold_val:
                 warnings = warnings + 1
@@ -504,7 +549,7 @@ class Client:
                     batch_x = np.stack(negatives_x, axis=0)
                     batch_y = np.stack(negatives_y, axis=0)
 
-                    self.threshold_network.train_on_batch(batch_x, batch_y)
+                    #self.threshold_network.train_on_batch(batch_x, batch_y)
 
                     negatives_x.clear()
                     negatives_y.clear()

@@ -38,6 +38,7 @@ ATTACKS: list[list[str]] = [
     ["MV101"],
     ["P102"],
     ["LIT101"],
+    # ["MV504"],
     ["AIT202"],
     ["LIT301"],
     ["DPIT301"],

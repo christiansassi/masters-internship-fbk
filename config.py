@@ -19,16 +19,16 @@ dotenv.load_dotenv()
 
 from types import SimpleNamespace
 
-WIDE_DEEP_NETWORK: bool = True
+WIDE_DEEP_NETWORK: bool = False
 THRESHOLD_NETWORK: bool = False
-SIMULATION: bool = False
+SIMULATION: bool = True
 
 TRAIN_VERBOSE: int = 1
 EVAL_VERBOSE: int = 1
 PREDICT_VERBOSE: int = 1
 
-GPU: bool = True
-WANDB: bool = True
+GPU: bool = False
+WANDB: bool = False
 
 if GPU:
 

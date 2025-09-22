@@ -5,6 +5,7 @@
 # Directories
 **/cache
 **/checkpoints
+**/clients
 **/datasets
 **/keys
 **/wandb

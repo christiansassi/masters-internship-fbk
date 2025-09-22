@@ -69,14 +69,19 @@ def split_clients(df: pd.DataFrame) -> list[pd.DataFrame]:
     for _, group in groupby(enumerate(attack_indices), key=lambda t: t[1] - t[0]):
         attack_chunks.append([v for _, v in group])
 
-    for index1, attack_chunk in enumerate(attack_chunks):
+    if not len(attack_chunks):
+        return clients
 
-        for index2, client in enumerate(clients):
-            if set(ATTACKS[index1]) & set(client.columns):
-                clients[index2].loc[attack_chunk, "Normal/Attack"] = 1
-            else:
-                clients[index2].loc[attack_chunk, "Normal/Attack"] = 0
-    
+    for client in clients:
+        client["Normal/Attack"] = 0
+
+        for attack_index, attack_labels in enumerate(ATTACKS):
+
+            if not set(attack_labels) & set(client.columns):
+                continue
+
+            client.loc[attack_chunks[attack_index], "Normal/Attack"] = 1
+
     return clients
 
 def split_train_val_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -199,7 +204,7 @@ if __name__ == "__main__":
         group.attrs["inputs"] = list(set(client.columns) - set(["Normal/Attack"]))
         group.attrs["outputs"] = [column for column in list(client.columns) if column in GLOBAL_OUTPUTS]
 
-        group.create_dataset("df_attack", data=df_attack.values)
+        group.create_dataset("df_attack", data=client.values)
 
         group.create_dataset("df_attack_input_indices", data=df_attack_input_indices)
         group.create_dataset("df_attack_output_indices", data=df_attack_output_indices)
