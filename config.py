@@ -16,7 +16,7 @@ WIDE_DEEP_NETWORK: bool = True
 THRESHOLD_NETWORK: bool = False
 SIMULATION: bool = False
 
-GPU: bool = False
+GPU: bool = True
 WANDB: bool = True
 
 import torch

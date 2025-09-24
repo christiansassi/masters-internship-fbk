@@ -127,14 +127,16 @@ class Client:
             else:
 
                 proc = psutil.Process(os.getpid())
+
                 before = proc.memory_info().rss
 
-                with torch.no_grad():
-                    _ = model(sample)
+                for _ in range(100):
+                    with torch.no_grad():
+                        _ = model(sample)
 
                 after = proc.memory_info().rss
 
-                sample_memory = after - before
+                sample_memory = abs(after - before)
                 physical_memory = psutil.virtual_memory().total
 
             sample_memory = sample_memory / 1024**2
@@ -156,7 +158,7 @@ class Client:
         # Calculate safe steps
         self.steps = max(self.steps, calculate_safe_steps(model=self.model_f_extractor, batch_size=len(self.train_input_indices) // self.steps))
         self.steps = min(self.steps, MAX_STEPS)
-        
+
         # Calculate batch size
         batch_size = len(self.train_input_indices) // self.steps
 
