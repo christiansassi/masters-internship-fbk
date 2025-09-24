@@ -112,6 +112,9 @@ class Client:
 
         self.model_f_extractor = deepcopy(model_f_extractor)
         
+        self.model_f_extractor.to(DEVICE)
+        self.model_sensor.to(DEVICE)
+
         min_train_loss = float("inf")
         min_val_loss = float("inf")
 
@@ -217,6 +220,9 @@ class Client:
     def eval_model_f_extractor(self, model_f_extractor: ModelFExtractor) -> float:
         
         self.model_f_extractor = deepcopy(model_f_extractor)
+
+        self.model_f_extractor.to(DEVICE)
+        self.model_sensor.to(DEVICE)
 
         min_eval_loss = float("inf")
 

@@ -26,5 +26,4 @@ def configure_log(level: int = logging.INFO):
 def log_timestamp_status() -> str:
     return f"[{datetime.now().strftime('%H:%M:%S')}][{logging.getLevelName(logging.getLogger().getEffectiveLevel())}]"
 
-clear_wandb_cache()
 configure_log()

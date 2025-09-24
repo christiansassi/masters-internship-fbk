@@ -1,4 +1,6 @@
 import os
+from os.path import exists
+import shutil
 
 os.environ["WANDB_SILENT"] = "true"
 os.environ["WANDB_CONSOLE"] = "off"
@@ -16,8 +18,8 @@ WIDE_DEEP_NETWORK: bool = True
 THRESHOLD_NETWORK: bool = False
 SIMULATION: bool = False
 
-GPU: bool = True
-WANDB: bool = False
+GPU: bool = False
+WANDB: bool = True
 
 import torch
 torch.set_default_tensor_type("torch.FloatTensor")
@@ -36,7 +38,11 @@ if GPU:
 else:
     DEVICE = torch.device("cpu")
 
-if WANDB:        
+if WANDB:   
+
+    if exists("wandb"):
+        shutil.rmtree("wandb")
+
     import wandb
 
 class WandbConfig:
