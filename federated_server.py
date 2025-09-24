@@ -66,6 +66,8 @@ class Server:
         
         # Deepcopy global model structure from the first client
         global_model = deepcopy(self.model_f_extractor)
+        global_model = global_model.to(DEVICE)
+
         global_state = global_model.state_dict()
 
         # Prepare accumulators
@@ -113,7 +115,7 @@ class Server:
 
             start = time()
 
-            round_num = round_num
+            round_num = round_num + 1
 
             print("")
             logging.info(f"---------- Round {round_num} ----------")
