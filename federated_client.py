@@ -125,7 +125,6 @@ class Client:
                 physical_memory = torch.cuda.mem_get_info(DEVICE)[1]
 
             else:
-
                 proc = psutil.Process(os.getpid())
 
                 before = proc.memory_info().rss
@@ -143,7 +142,7 @@ class Client:
             physical_memory = physical_memory // 1024**2
 
             return len(self.train_input_indices) // math.floor(physical_memory / (sample_memory * 2))
-        
+
         self.model_f_extractor = deepcopy(model_f_extractor)
         
         self.model_f_extractor.to(DEVICE)
@@ -187,13 +186,10 @@ class Client:
                 w_out = torch.from_numpy(w_out).float().to(DEVICE)
 
                 # Reset gradients
-                self.model_f_extractor.zero_grad()
+                self.optimizer.zero_grad()
 
                 # Forward pass through the feature extractor
                 x = self.model_f_extractor(w_in)
-
-                # Reset gradients in the sensor head
-                self.model_sensor.zero_grad()
 
                 # Forward pass through the sensor head
                 y = self.model_sensor(x)
@@ -207,7 +203,7 @@ class Client:
 
                 train_loss = train_loss + loss.item()
             
-            train_loss = train_loss / (len(self.train_input_indices) // BATCH_SIZE) # self.steps
+            train_loss = train_loss / (len(self.train_input_indices) // batch_size) # self.steps
 
             # Validation
             self.model_f_extractor.eval()
@@ -215,32 +211,33 @@ class Client:
 
             val_loss = 0
 
-            for batch_index in np.random.permutation(range(0, len(self.val_input_indices) // BATCH_SIZE)):
-                
-                df_in = self.df_val[self.val_input_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()]
-                df_out = self.df_val[self.val_output_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
+            with torch.no_grad():
+                for batch_index in np.random.permutation(range(0, len(self.val_input_indices) // BATCH_SIZE)):
+                    
+                    df_in = self.df_val[self.val_input_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()]
+                    df_out = self.df_val[self.val_output_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
 
-                # Input
-                w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
-                w_in[:, self.input_mask] = df_in
+                    # Input
+                    w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+                    w_in[:, self.input_mask] = df_in
 
-                w_in = w_in.reshape(BATCH_SIZE, WINDOW_PAST, -1)
-                w_in = torch.from_numpy(w_in).float().to(DEVICE)
+                    w_in = w_in.reshape(BATCH_SIZE, WINDOW_PAST, -1)
+                    w_in = torch.from_numpy(w_in).float().to(DEVICE)
 
-                # Output
-                w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
-                w_out = torch.from_numpy(w_out).float().to(DEVICE)
+                    # Output
+                    w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
+                    w_out = torch.from_numpy(w_out).float().to(DEVICE)
 
-                # Forward pass through the feature extractor
-                x = self.model_f_extractor(w_in)
+                    # Forward pass through the feature extractor
+                    x = self.model_f_extractor(w_in)
 
-                # Forward pass through the sensor head
-                y = self.model_sensor(x)
+                    # Forward pass through the sensor head
+                    y = self.model_sensor(x)
 
-                # Compute loss
-                loss = self.criterion(y, w_out)
+                    # Compute loss
+                    loss = self.criterion(y, w_out)
 
-                val_loss = val_loss + loss.item()
+                    val_loss = val_loss + loss.item()
 
             val_loss = val_loss / (len(self.val_input_indices) // BATCH_SIZE) # self.steps
             
@@ -268,15 +265,13 @@ class Client:
         self.model_f_extractor.to(DEVICE)
         self.model_sensor.to(DEVICE)
 
-        min_eval_loss = float("inf")
+        # Training
+        self.model_f_extractor.eval()
+        self.model_sensor.eval()
 
-        for epoch in range(self.epochs):
-            
-            # Training
-            self.model_f_extractor.eval()
-            self.model_sensor.eval()
+        eval_loss = 0
 
-            eval_loss = 0
+        with torch.no_grad():
 
             for batch_index in np.random.permutation(range(0, len(self.test_input_indices) // BATCH_SIZE)):
                 
@@ -286,7 +281,7 @@ class Client:
                 # Input
                 w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
                 w_in[:, self.input_mask] = df_in
-    
+
                 w_in = w_in.reshape(BATCH_SIZE, WINDOW_PAST, -1)
                 w_in = torch.from_numpy(w_in).float().to(DEVICE)
 
@@ -305,11 +300,11 @@ class Client:
 
                 eval_loss = eval_loss + loss.item()
 
-            eval_loss = eval_loss / self.steps
+        eval_loss = eval_loss / (len(self.test_input_indices) // BATCH_SIZE)
 
-            min_eval_loss = min(min_eval_loss, eval_loss)
+        self.score = -eval_loss
 
-        return -min_eval_loss
+        return -eval_loss
 
     def set_model_f_extractor(self, model_f_extractor: ModelFExtractor):
         self.model_f_extractor = deepcopy(model_f_extractor)
