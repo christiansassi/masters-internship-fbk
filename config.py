@@ -1,6 +1,4 @@
 import os
-from os.path import exists
-import shutil
 
 os.environ["WANDB_SILENT"] = "true"
 os.environ["WANDB_CONSOLE"] = "off"
@@ -39,10 +37,6 @@ else:
     DEVICE = torch.device("cpu")
 
 if WANDB:   
-
-    if exists("wandb"):
-        shutil.rmtree("wandb")
-
     import wandb
 
 class WandbConfig:
