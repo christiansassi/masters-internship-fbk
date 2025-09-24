@@ -1,19 +1,21 @@
 from config import *
 from constants import *
-from data_utils import *
 from models import ModelFExtractor, ModelSensors
 
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader
 
 import h5py
 import numpy as np
 
+import psutil
+
 from copy import deepcopy
 
 import uuid
+
+import math
 
 class Client:
     def __init__(
@@ -97,19 +99,49 @@ class Client:
         self.input_mask = [list(GLOBAL_INPUTS).index(x) for x in self.inputs]
         self.output_mask = [list(self.inputs).index(item) for item in self.outputs]
 
-        self.train_dataset = TrainDataset(
-            df_train=self.df_train,
-            train_input_indices=self.train_input_indices,
-            train_output_indices=self.train_output_indices,
-            input_mask=self.input_mask,
-            output_mask=self.output_mask
-        )
-
     def __str__(self) -> str:
         return self.id
 
     def train_model_f_extractor(self, model_f_extractor: ModelFExtractor) -> tuple:
 
+        def calculate_safe_steps(model, batch_size):
+            
+            df_in = self.df_train[self.train_input_indices[:batch_size].flatten()]
+
+            batch = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+            batch[:, self.input_mask] = df_in
+            batch = batch.reshape(batch_size, WINDOW_PAST, -1)
+            batch = torch.from_numpy(batch).float().to(DEVICE)
+
+            sample = batch[:1]
+
+            if GPU:
+                torch.cuda.reset_peak_memory_stats()
+
+                with torch.no_grad():
+                    model(sample)
+
+                sample_memory = torch.cuda.max_memory_allocated()
+                physical_memory = torch.cuda.mem_get_info(DEVICE)[1]
+
+            else:
+
+                proc = psutil.Process(os.getpid())
+                before = proc.memory_info().rss
+
+                with torch.no_grad():
+                    _ = model(sample)
+
+                after = proc.memory_info().rss
+
+                sample_memory = after - before
+                physical_memory = psutil.virtual_memory().total
+
+            sample_memory = sample_memory / 1024**2
+            physical_memory = physical_memory // 1024**2
+
+            return len(self.train_input_indices) // math.floor(physical_memory / (sample_memory * 2))
+        
         self.model_f_extractor = deepcopy(model_f_extractor)
         
         self.model_f_extractor.to(DEVICE)
@@ -120,14 +152,13 @@ class Client:
 
         best_model_f_extractor = None
         best_model_sensor = None
+
+        # Calculate safe steps
+        self.steps = max(self.steps, calculate_safe_steps(model=self.model_f_extractor, batch_size=len(self.train_input_indices) // self.steps))
+        self.steps = min(self.steps, MAX_STEPS)
         
-        train_loader = DataLoader(
-            self.train_dataset,
-            batch_size=len(self.train_input_indices) // self.steps,
-            shuffle=True,
-            pin_memory=True,
-            num_workers=4
-        )
+        # Calculate batch size
+        batch_size = len(self.train_input_indices) // self.steps
 
         for epoch in range(self.epochs):
             
@@ -137,10 +168,21 @@ class Client:
 
             train_loss = 0
 
-            for w_in, w_out in train_loader:
+            for batch_index in np.random.permutation(range(0, len(self.train_input_indices) // batch_size)):
                 
-                w_in = w_in.float().to(DEVICE, non_blocking=True)
-                w_out = w_out.float().to(DEVICE, non_blocking=True)
+                df_in = self.df_train[self.train_input_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()]
+                df_out = self.df_train[self.train_output_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()][:, self.output_mask]
+
+                # Input
+                w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+                w_in[:, self.input_mask] = df_in
+
+                w_in = w_in.reshape(batch_size, WINDOW_PAST, -1)
+                w_in = torch.from_numpy(w_in).float().to(DEVICE)
+
+                # Output
+                w_out = df_out.reshape(batch_size, WINDOW_PRESENT, -1)
+                w_out = torch.from_numpy(w_out).float().to(DEVICE)
 
                 # Reset gradients
                 self.model_f_extractor.zero_grad()
@@ -163,7 +205,7 @@ class Client:
 
                 train_loss = train_loss + loss.item()
             
-            train_loss = train_loss / len(train_loader) # self.steps
+            train_loss = train_loss / (len(self.train_input_indices) // BATCH_SIZE) # self.steps
 
             # Validation
             self.model_f_extractor.eval()
