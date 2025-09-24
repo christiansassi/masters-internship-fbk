@@ -1,45 +1,40 @@
 import os
 
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["WANDB_SILENT"] = "true"
 os.environ["WANDB_CONSOLE"] = "off"
-
-import logging
-logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
-
-import tensorflow as tf
 
 import dotenv
 dotenv.load_dotenv()
 
 from types import SimpleNamespace
 
-WIDE_DEEP_NETWORK: bool = False
+WIDE_DEEP_NETWORK: bool = True
 THRESHOLD_NETWORK: bool = False
-SIMULATION: bool = True
+SIMULATION: bool = False
 
-TRAIN_VERBOSE: int = 1
-EVAL_VERBOSE: int = 1
-PREDICT_VERBOSE: int = 1
-
-GPU: bool = False
+GPU: bool = True
 WANDB: bool = False
+
+import torch
+torch.set_default_tensor_type("torch.FloatTensor")
 
 if GPU:
 
     GPU = False
 
-    for gpu in tf.config.experimental.list_physical_devices("GPU"):
-        tf.config.experimental.set_memory_growth(gpu, True)
+    if torch.cuda.is_available():
         GPU = True
+        DEVICE = torch.device("cuda:0")
+
+    else:
+        DEVICE = torch.device("cpu")
 
 else:
-    tf.config.set_visible_devices([], "GPU")
+    DEVICE = torch.device("cpu")
 
 if WANDB:        
     import wandb

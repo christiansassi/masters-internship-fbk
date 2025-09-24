@@ -12,21 +12,21 @@ if __name__ == "__main__":
     utils.clear_console()
 
     # Instantiate clients
-    clients = generate_non_iid_clients(wide_deep_network=f"{join(WIDE_DEEP_NETWORK, WIDE_DEEP_NETWORK_BASENAME)}.h5" if not config.WIDE_DEEP_NETWORK else None)
+    clients = generate_non_iid_clients()
 
     # Instantiate server
-    server = Server(clients=clients, wide_deep_network=f"{join(WIDE_DEEP_NETWORK, WIDE_DEEP_NETWORK_BASENAME)}.h5"if not config.WIDE_DEEP_NETWORK else None)
+    server = Server(clients=clients)
 
     # Wide Deep Network training (federated)
     if config.WIDE_DEEP_NETWORK:
         server.federated_learning()
 
-    # Threshold Network training (local)
-    if config.THRESHOLD_NETWORK:
-        server.train_threshold_networks()
+    # # Threshold Network training (local)
+    # if config.THRESHOLD_NETWORK:
+    #     server.train_threshold_networks()
     
-    # Simulation
-    if config.SIMULATION:
+    # # Simulation
+    # if config.SIMULATION:
 
-        for client in clients:
-            client.run_simulation_v1()
+    #     for client in clients:
+    #         client.run_simulation_v1()

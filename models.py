@@ -1,209 +1,107 @@
-from constants import *
-
 import numpy as np
 
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers # type: ignore
+import torch
+import torch.nn as nn
 
-# ===========================================
-# Wide & Deep Network
-# ===========================================
+def init_weights(m):
+    if isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
+        m.reset_parameters()
 
-class WideDeepNetworkDAICS(keras.Model):
-    def __init__(
-            self, 
-            window_past: int, 
-            window_present: int,
-            n_inputs: int, 
-            n_outputs: int,
-            conv_filters: int = 64, 
-            conv_kernel: int = KERNEL_SIZE,
-            hidden_units: int = 80, 
-            dropout: float = 0.4
-        ):
+def conv1d_output_shape(l_in, kernel_size=1, stride=1, pad=0, dilation=1):
+    l_out = np.floor((l_in + 2 * pad - dilation * (kernel_size - 1) - 1) / stride + 1)
+    return int(l_out)
 
-        super().__init__()
+def maxpool1d_output_shape(l_in, kernel_size=1, stride=None, pad=0, dilation=1):
+    if stride is None:
+        stride = kernel_size
+    l_out = np.floor((l_in + 2 * pad - dilation * (kernel_size - 1) - 1) / stride + 1)
+    return int(l_out if l_out != 0 else 1)
 
-        self.window_past = window_past
-        self.window_present = window_present
-        self.n_inputs = n_inputs
-        self.n_outputs = n_outputs
-
-        # Client-specific mask (set externally)
-        self.mask_out = None
-
-        # Wide branch
-        self.fc_wide = layers.Dense(window_present)
+class ModelFExtractor(nn.Module):
+    def __init__(self, window_size_in, window_size_out, n_devices_in, kernel_size):
+        super(ModelFExtractor, self).__init__()
+        self.relu = nn.LeakyReLU()
+        self.dropout = nn.Dropout(p=0.4)
 
         # Deep branch
-        self.conv1 = layers.Conv1D(conv_filters, conv_kernel, activation="leaky_relu")
-        self.pool1 = layers.MaxPool1D(2)
-        self.conv2 = layers.Conv1D(conv_filters * 2, conv_kernel, activation="leaky_relu")
-        self.pool2 = layers.MaxPool1D(2)
-        self.dropout = layers.Dropout(dropout)
-
-        # Combine
-        self.fc_combine = layers.Dense(hidden_units, activation="leaky_relu")
-
-        # Head
-        self.fc_out1 = layers.Dense(int(n_outputs * 2.25), activation="leaky_relu")
-        self.fc_out2 = layers.Dense(int(n_outputs * 1.5), activation="leaky_relu")
-        self.out = layers.Dense(window_present * n_outputs, activation="linear")
-
-    def set_mask(self, mask_out: np.ndarray, window_present: int):
-        mask = np.zeros((1, window_present, self.n_outputs), dtype=np.float32)
-
-        for index in mask_out:
-            mask[:, :, index] = 1.0
-
-        self.mask_out = tf.constant(mask, dtype=tf.float32)
-
-    def call(self, inputs, training=False):
-        x = inputs  # (B, W_in, n_inputs)
-
-        # Wide
-        wide = self.fc_wide(tf.transpose(x, perm=[0, 2, 1]))
-
-        # Deep
-        d = self.conv1(x)
-        d = self.pool1(d)
-        d = self.conv2(d)
-        d = self.pool2(d)
-        d = self.dropout(d, training=training)
-        d = tf.reduce_mean(d, axis=1)
-
-        # Combine
-        wide_mean = tf.reduce_mean(wide, axis=1)
-        fused = tf.concat([wide_mean, d], axis=-1)
-        fused = self.fc_combine(fused)
-
-        # Head
-        y = self.fc_out1(fused)
-        y = self.dropout(y, training=training)
-        y = self.fc_out2(y)
-        y = self.dropout(y, training=training)
-        out = self.out(y)
-        out = tf.reshape(out, (-1, self.window_present, self.n_outputs))
-
-        if self.mask_out is not None:
-            out = out * self.mask_out
-
-        return out
-
-    def clone(self):
-
-        clone = WideDeepNetworkDAICS(
-            self.window_past, self.window_present,
-            self.n_inputs, self.n_outputs
+        self.fc13 = nn.Linear(window_size_in, 
+                              window_size_in * 3 if window_size_in >= n_devices_in else n_devices_in * 3)
+        self.conv = nn.Sequential(
+            nn.Conv1d(n_devices_in, 64, kernel_size),
+            nn.LeakyReLU(True),
+            nn.MaxPool1d(2),
+            nn.Conv1d(64, 128, kernel_size),
+            nn.LeakyReLU(True),
+            nn.MaxPool1d(2)
         )
+        self.conv_out_channels = 128
+        self.maxpool1_out = maxpool1d_output_shape(conv1d_output_shape(
+            window_size_in * 3 if window_size_in >= n_devices_in else n_devices_in * 3, kernel_size=kernel_size), kernel_size=2)
+        self.maxpool2_out = maxpool1d_output_shape(conv1d_output_shape(
+            self.maxpool1_out, kernel_size=kernel_size), kernel_size=2)
+        self.out_2 = nn.Linear(self.conv_out_channels, window_size_out)
 
-        # Build weights
-        clone.build(input_shape=(None, self.window_past, self.n_inputs))
+        # Wide branch
+        self.fc20 = nn.Linear(window_size_in, window_size_out)
 
-        # Copy weights
-        clone.set_weights(self.get_weights())
+        # Aggregation
+        self.out_h = nn.Linear(self.maxpool2_out + n_devices_in, 80)
 
-        # Copy mask if present
-        if self.mask_out is not None:
-            clone.mask_out = tf.identity(self.mask_out)
+    def forward_two(self, x):
+        x = self.fc13(x)
+        x = self.conv(x)
+        x = x.view(x.size(0), self.maxpool2_out, self.conv_out_channels)
+        x = self.dropout(x)
+        x = self.relu(self.out_2(x))
+        return x
 
-        # Compile
-        clone.compile(
-            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-            loss=LOSS
+    def forward_three(self, x):
+        x = self.dropout(self.relu(self.fc20(x)))
+        return x
+
+    def forward(self, x_t_1):
+        x_t_1 = x_t_1.transpose(2, 1)
+        y_t2 = self.forward_two(x_t_1)
+        y_t3 = self.forward_three(x_t_1)
+        y_t = torch.cat((y_t2, y_t3), dim=1).transpose(2, 1)
+        y_t = self.dropout(self.relu(self.out_h(y_t)))
+        return y_t
+
+class ModelSensors(nn.Module):
+    def __init__(self, n_devices_out):
+        super(ModelSensors, self).__init__()
+        self.relu = nn.LeakyReLU()
+        self.dropout = nn.Dropout(p=0.4)
+        self.out_h1 = nn.Linear(80, int(n_devices_out * 2.25))
+        self.out_h2 = nn.Linear(int(n_devices_out * 2.25), int(n_devices_out * 1.5))
+        self.out = nn.Linear(int(n_devices_out * 1.5), n_devices_out)
+
+    def forward(self, y_t):
+        y_t = self.dropout(self.relu(self.out_h1(y_t)))
+        y_t = self.dropout(self.relu(self.out_h2(y_t)))
+        y_t = self.relu(self.out(y_t))
+        return y_t
+
+class PredErrorModel(nn.Module):
+    def __init__(self, window_size_in, window_size_out):
+        super(PredErrorModel, self).__init__()
+        self.relu = nn.ReLU()
+        self.conv = nn.Sequential(
+            nn.Conv1d(1, 2, 2),
+            nn.ReLU(True),
+            nn.MaxPool1d(2),
+            nn.Conv1d(2, 4, 2),
+            nn.ReLU(True),
+            nn.MaxPool1d(2),
         )
+        self.maxpool1_out = maxpool1d_output_shape(
+            conv1d_output_shape(window_size_in, kernel_size=2), kernel_size=2)
+        self.maxpool2_out = maxpool1d_output_shape(
+            conv1d_output_shape(self.maxpool1_out, kernel_size=2), kernel_size=2)
+        self.out_1 = nn.Linear(self.maxpool2_out, 1)
 
-        return clone
-    
-    def save(self, *args, **kwargs):
-
-        dummy = tf.zeros((1, self.window_past, self.n_inputs))
-        _ = self(dummy) 
-
-        super().save(*args, **kwargs)
-
-    def get_config(self):
-        return {
-            "window_past": self.window_past,
-            "window_present": self.window_present,
-            "n_inputs": self.n_inputs,
-            "n_outputs": self.n_outputs,
-        }
-
-    @classmethod
-    def from_config(cls, config):
-        return cls(**config)
-
-# ===========================================
-# Threshold Network
-# ===========================================
-
-class ThresholdNetworkDAICS(keras.Model):
-    def __init__(
-            self, 
-            window_past: int, 
-            window_present: int
-        ):
-
-        super().__init__()
-
-        self.window_past = window_past
-        self.window_present = window_present
-        self.n_inputs = 1
-
-        self.conv1 = layers.Conv1D(2, 2, activation="relu", input_shape=(window_past, 1))
-        self.pool1 = layers.MaxPool1D(2)
-        self.conv2 = layers.Conv1D(4, 2, activation="relu")
-        self.pool2 = layers.MaxPool1D(2)
-
-        self.flatten = layers.Flatten()
-        self.fc_out = layers.Dense(1, activation="relu")
-
-        self.compile(
-            optimizer=keras.optimizers.SGD(learning_rate=0.01),
-            loss="mse"
-        )
-
-    def call(self, inputs, training=False):
-        x = self.conv1(inputs)
-        x = self.pool1(x)
-        x = self.conv2(x)
-        x = self.pool2(x)
-        x = self.flatten(x)
-        out = self.fc_out(x)
-        return out
-
-    def clone(self):
-        clone = ThresholdNetworkDAICS(self.window_past, self.window_present)
-
-        # Build weights
-        clone.build(input_shape=(None, self.window_past, self.n_inputs))
-
-        # Copy weights
-        clone.set_weights(self.get_weights())
-
-        # Compile
-        clone.compile(
-            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-            loss=LOSS
-        )
-
-        return clone
-    
-    def save(self, *args, **kwargs):
-        
-        dummy = tf.zeros((1, self.window_past, self.n_inputs))
-        _ = self(dummy) 
-
-        super().save(*args, **kwargs)
-
-    def get_config(self):
-        return {
-            "window_past": self.window_past,
-            "window_present": self.window_present,
-        }
-
-    @classmethod
-    def from_config(cls, config):
-        return cls(**config)
+    def forward(self, x_t_1):
+        x = x_t_1.transpose(2, 1)
+        x = self.conv(x)
+        x = self.relu(self.out_1(x))
+        return x

@@ -1,48 +1,35 @@
 from config import *
-import utils
 from constants import *
-from models import WideDeepNetworkDAICS, ThresholdNetworkDAICS
 from federated_client import *
+from models import *
+import utils
 
-from os.path import join
 from os import makedirs
-
-import logging
 
 from time import time
 from datetime import datetime
 
-import tensorflow as tf
+import logging
+
+import torch
 
 class Server:
 
-    def __init__(self, clients: list[Client], wide_deep_network: WideDeepNetworkDAICS = None):
+    def __init__(self, clients: list[Client]):
         
         self.clients = clients
 
-        self.wide_deep_network = WideDeepNetworkDAICS(
-            window_past=WINDOW_PAST,
-            window_present=WINDOW_PRESENT,
-            n_inputs=len(GLOBAL_INPUTS),
-            n_outputs=len(GLOBAL_OUTPUTS)
+        self.model_f_extractor = ModelFExtractor(
+            window_size_in=WINDOW_PAST, 
+            window_size_out=WINDOW_PRESENT, 
+            n_devices_in=len(GLOBAL_INPUTS), 
+            kernel_size=KERNEL_SIZE
         )
 
-        self.wide_deep_network.build(
-            input_shape=(None, WINDOW_PAST, len(GLOBAL_INPUTS))
-        )
-        
-        if wide_deep_network is not None:
-            self.wide_deep_network.load_weights(wide_deep_network)
-
-        self.wide_deep_network.compile(
-            optimizer=tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE, momentum=MOMENTUM),
-            loss=LOSS
-        )
-
-        self.wide_deep_score = 0
+        self.score = float("inf")
 
         for client in self.clients:
-            client.set_wide_deep_network(wide_deep_network=self.wide_deep_network)
+            client.set_model_f_extractor(model_f_extractor=self.model_f_extractor)
 
     def select_clients(self) -> list[Client]:
 
@@ -53,59 +40,62 @@ class Server:
 
         for client in self.clients:
 
-            if client.wide_deep_score > self.wide_deep_score:
+            if client.score > self.score:
                 continue
 
-            min_score = min(min_score, client.wide_deep_score)
-            max_score = max(max_score, client.wide_deep_score)
+            min_score = min(min_score, client.score)
+            max_score = max(max_score, client.score)
 
             selected_clients.append(client)
         
         for index, client in enumerate(selected_clients):
 
             if max_score != min_score:
-                scaling_factor = (max_score - client.wide_deep_score) / (max_score - min_score)
+                scaling_factor = (max_score - client.score) / (max_score - min_score)
             else:
                 scaling_factor = 0
 
-            client.wide_deep_epochs = int(MIN_EPOCHS + (MAX_EPOCHS - MIN_EPOCHS) * scaling_factor)
-            client.wide_deep_steps = int(MIN_STEPS + (MAX_STEPS - MIN_STEPS) * scaling_factor)
+            client.epochs = int(MIN_EPOCHS + (MAX_EPOCHS - MIN_EPOCHS) * scaling_factor)
+            client.steps = int(MIN_STEPS + (MAX_STEPS - MIN_STEPS) * scaling_factor)
 
             selected_clients[index] = client
         
         return selected_clients
 
-    def aggregate_networks(self, clients: list[Client], weighted: bool = False) -> WideDeepNetworkDAICS:
+    def aggregate_networks(self, clients: list[Client], weighted: bool = False) -> ModelFExtractor:
         
-        old_weights = [client.wide_deep_network.get_weights() for client in clients]
-        new_weights = []
+        # Deepcopy global model structure from the first client
+        global_model = deepcopy(self.model_f_extractor)
+        global_state = global_model.state_dict()
 
-        if not weighted:
+        # Prepare accumulators
+        for key in global_state.keys():
+            global_state[key] = torch.zeros_like(global_state[key])
 
-            for weights in zip(*old_weights):
-                new_weights.append(np.mean(np.stack(weights, axis=0), axis=0))
-            
-        else:
+        # Compute total weight (for weighted averaging)
+        total_weight = sum(client.num_of_samples for client in clients) if weighted else len(clients)
 
-            sample_counts = [len(client.df_train) + len(client.df_val) + len(client.df_test) for client in clients]
-            total = np.sum(sample_counts)
+        # Aggregate parameters
+        for client in clients:
 
-            for weights in zip(*old_weights):
-                weighted_sum = np.sum([w * (n/total) for w, n in zip(weights, sample_counts)], axis=0)
-                new_weights.append(weighted_sum)
-            
-        wide_deep_network = self.wide_deep_network.clone()
-        wide_deep_network.set_weights(new_weights)
+            client_state = client.model_f_extractor.state_dict()
+            weight = client.num_of_samples if weighted else 1
 
-        return wide_deep_network
+            for key in global_state.keys():
+                global_state[key] += (client_state[key] * (weight / total_weight))
 
+        # Load averaged weights into global model
+        global_model.load_state_dict(global_state)
+
+        return global_model
+    
     def federated_learning(self):
 
         session_id = str(int(datetime.now().timestamp()))
 
-        run = config.WandbConfig.init_run(f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network")
+        run = WandbConfig.init_run(f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network")
 
-        map_clients_ids = {str(client): f"{'-'.join(sorted(client.inputs))}" for index, client in enumerate(self.clients, start=1)}
+        map_clients_ids = {str(client): f"{'-'.join(sorted(client.inputs))}" for client in self.clients}
 
         losses = {client: {
             "train_loss": float("-inf"),
@@ -117,13 +107,13 @@ class Server:
         stop_counter = 0
 
         best_score = float("-inf")
-        best_wide_deep_network = self.wide_deep_network.clone()
+        best_model_f_extractor = deepcopy(self.model_f_extractor)
 
         while True:
 
             start = time()
 
-            round_num = round_num + 1
+            round_num = round_num
 
             print("")
             logging.info(f"---------- Round {round_num} ----------")
@@ -131,54 +121,61 @@ class Server:
             # Select clients
             selected_clients = self.select_clients()
 
-            # Update clients
+            # Updat eclients
             for index, client in enumerate(selected_clients):
                 print(f"{utils.log_timestamp_status()} Training {index + 1} / {len(selected_clients)}", end="\r")
-                loss, val_loss = client.train_wide_deep_network(wide_deep_network=self.wide_deep_network)
+                train_loss, val_loss = client.train_model_f_extractor(model_f_extractor=self.model_f_extractor)
 
                 client_id = map_clients_ids[str(client)]
 
-                losses[client_id]["train_loss"] = loss
+                losses[client_id]["train_loss"] = train_loss
                 losses[client_id]["val_loss"] = val_loss
-
+            
             logging.info(f"Trained {len(selected_clients)} clients")
 
-            # Model aggregation
+            # Model aggregations
             logging.info(f"Aggregating models")
-            self.wide_deep_network = self.aggregate_networks(clients=self.clients)
+            self.model_f_extractor = self.aggregate_networks(clients=self.clients)
 
             # Evaluate clients
-            self.wide_deep_score = 0
+            self.score = 0
 
             for index, client in enumerate(self.clients):
                 print(f"{utils.log_timestamp_status()} Evaluating {index + 1} / {len(self.clients)}", end="\r")
 
-                eval_loss = client.eval_wide_deep_network(wide_deep_network=self.wide_deep_network)
+                eval_loss = client.eval_model_f_extractor(model_f_extractor=self.model_f_extractor)
 
                 client_id = map_clients_ids[str(client)]
 
                 losses[client_id]["eval_loss"] = eval_loss
-    
-                self.wide_deep_score = self.wide_deep_score + eval_loss
-            
-            self.wide_deep_score = self.wide_deep_score / len(self.clients)
+
+                self.score = self.score + eval_loss
+
+            self.score = self.score / len(self.clients)
 
             logging.info(f"Evaluated {len(self.clients)} clients")
 
             # Check for improvements
-            logging.info(f"Current score: {self.wide_deep_score}")
+            logging.info(f"Current score: {self.score}")
             logging.info(f"Best score: {best_score}")
 
-            if self.wide_deep_score > best_score:
+            if self.score > best_score:
                 stop_counter = 0
 
-                best_score = self.wide_deep_score
-                best_wide_deep_network = self.wide_deep_network.clone()
+                best_score = self.score
+                best_model_f_extractor = deepcopy(self.model_f_extractor)
 
-                # Save the checkpoint
                 makedirs(name=WIDE_DEEP_NETWORK_CHECKPOINT, exist_ok=True)
 
-                best_wide_deep_network.save_weights(filepath=join(WIDE_DEEP_NETWORK_CHECKPOINT, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.h5"))
+                model_path = join(WIDE_DEEP_NETWORK_CHECKPOINT, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.pt")
+                model_dict = {
+                    "model_f_extractor": best_model_f_extractor.state_dict(),
+                    "model_sensors": {
+                        str(client): client.model_sensor.state_dict()
+                    for client in self.clients}
+                }
+
+                torch.save(model_dict, model_path)
 
             else:
                 stop_counter = stop_counter + 1
@@ -189,7 +186,7 @@ class Server:
             log = {
                 "round": round_num,
                 "selected_clients": len(selected_clients),
-                "score": self.wide_deep_score,
+                "score": self.score,
                 "best": best_score,
                 "stop_counter": stop_counter,
                 "time_per_round": time() - start,
@@ -202,68 +199,9 @@ class Server:
             if stop_counter >= PATIENCE:
                 break
         
-        self.wide_deep_network = best_wide_deep_network.clone()
+        self.model_f_extractor = deepcopy(best_model_f_extractor)
 
         for client in self.clients:
-            client.set_wide_deep_network(wide_deep_network=self.wide_deep_network)
-        
-        makedirs(name=WIDE_DEEP_NETWORK, exist_ok=True)
-
-        self.wide_deep_network.save_weights(filepath=join(WIDE_DEEP_NETWORK, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.h5"))
-
-        run.finish()
-    
-    def train_threshold_networks(self):
-
-        run = config.WandbConfig.init_run(f"[{'GPU' if GPU else 'CPU'}] Threshold Network")
-
-        map_clients_ids = {str(client): f"{'-'.join(sorted(client.inputs))}" for index, client in enumerate(self.clients, start=1)}
-
-        losses = {client: {
-            "train_loss": float("-inf"),
-            "val_loss": float("-inf"),
-            "eval_loss": float("-inf")
-        } for client in map_clients_ids.values()}
-
-        for index, client in enumerate(self.clients):
-
-            # Train
-            print(f"{utils.log_timestamp_status()} Training {index + 1} / {len(self.clients)}")
-            train_loss, val_loss = client.train_threshold_network()
-
-            # Evaluate
-            print(f"{utils.log_timestamp_status()} Evaluating {index + 1} / {len(self.clients)}")
-            eval_loss = client.eval_threshold_network()
-
-            # Save score
-            client_id = map_clients_ids[str(client)]
-
-            losses[client_id]["train_loss"] = train_loss
-            losses[client_id]["val_loss"] = val_loss
-            losses[client_id]["eval_loss"] = eval_loss
-
-            # Save model
-            makedirs(name=THRESHOLD_NETWORK_CHECKPOINT, exist_ok=True)
-
-            client.threshold_network.save_weights(filepath=join(THRESHOLD_NETWORK_CHECKPOINT, f"{THRESHOLD_NETWORK_BASENAME}-{str(client)}.h5"))
-
-        bar_plots = {}
-
-        for key, label in [("train_loss", "Train"), ("val_loss", "Validation"), ("eval_loss", "Evaluation")]:
-
-            data = [[map_clients_ids[str(client)], losses[map_clients_ids[str(client)]][key]] for client in self.clients]
-
-            table = config.WandbConfig.table(data=data, columns=["client", "loss"])
-
-            bar_plot = config.WandbConfig.plot_bar(
-                table=table,
-                label="client",
-                value="loss",
-                title=f"{label} Loss"
-            )
-
-            bar_plots[key] = bar_plot
-
-        run.log(bar_plots)
+            client.set_model_f_extractor(model_f_extractor=self.model_f_extractor)
 
         run.finish()
