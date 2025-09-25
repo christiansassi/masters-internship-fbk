@@ -9,13 +9,9 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import h5py
 import numpy as np
 
-import psutil
-
 from copy import deepcopy
 
 import uuid
-
-import math
 
 class Client:
     def __init__(
@@ -99,6 +95,12 @@ class Client:
         self.input_mask = [list(GLOBAL_INPUTS).index(x) for x in self.inputs]
         self.output_mask = [list(self.inputs).index(item) for item in self.outputs]
 
+        self.val_mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
+        self.val_mask[:, :, self.input_mask] = 1
+
+        self.eval_mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
+        self.eval_mask[:, :, self.input_mask] = 1
+
     def __str__(self) -> str:
         return self.id
 
@@ -116,21 +118,28 @@ class Client:
         best_model_sensor = None
 
         # Calculate batch size
+        #TODO adjust batch_size dynamically
         batch_size = BATCH_SIZE # len(self.train_input_indices) // self.steps
+
+        train_mask = torch.zeros(batch_size, WINDOW_PAST, len(GLOBAL_INPUTS))
+        train_mask[:, :, self.input_mask] = 1
 
         train_input_indices = self.train_input_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
         train_output_indices = self.train_output_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
 
         for epoch in range(self.epochs):
             
+            print(" "*100, end="\r")
+            print(f"Epoch: {epoch+1} / {self.epochs}", end="\r")
+
             # Training
             self.model_f_extractor.train()
             self.model_sensor.train()
 
             train_loss = 0
 
-            for batch_index in np.random.permutation(range(0, len(train_input_indices) // batch_size)):
-                
+            for step, batch_index in enumerate(np.random.permutation(range(0, len(train_input_indices) // batch_size)), start=1):
+
                 df_in = self.df_train[train_input_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()]
                 df_out = self.df_train[train_output_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()][:, self.output_mask]
 
@@ -149,7 +158,7 @@ class Client:
                 self.optimizer.zero_grad()
 
                 # Forward pass through the feature extractor
-                x = self.model_f_extractor(w_in)
+                x = self.model_f_extractor(w_in, train_mask)
 
                 # Forward pass through the sensor head
                 y = self.model_sensor(x)
@@ -162,7 +171,7 @@ class Client:
                 self.optimizer.step()
 
                 train_loss = train_loss + loss.item()
-            
+
             train_loss = train_loss / (len(train_input_indices) // batch_size) # self.steps
 
             min_train_loss = min(min_train_loss, train_loss)
@@ -174,7 +183,8 @@ class Client:
             val_loss = 0
 
             with torch.no_grad():
-                for batch_index in np.random.permutation(range(0, len(self.val_input_indices) // BATCH_SIZE)):
+
+                for step, batch_index in enumerate(np.random.permutation(range(0, len(self.val_input_indices) // BATCH_SIZE)), start=1):
                     
                     df_in = self.df_val[self.val_input_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()]
                     df_out = self.df_val[self.val_output_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
@@ -191,7 +201,7 @@ class Client:
                     w_out = torch.from_numpy(w_out).float().to(DEVICE)
 
                     # Forward pass through the feature extractor
-                    x = self.model_f_extractor(w_in)
+                    x = self.model_f_extractor(w_in, self.val_mask)
 
                     # Forward pass through the sensor head
                     y = self.model_sensor(x)
@@ -202,7 +212,7 @@ class Client:
                     val_loss = val_loss + loss.item()
 
             val_loss = val_loss / (len(self.val_input_indices) // BATCH_SIZE) # self.steps
-            
+
             # Save best models
             if val_loss < min_val_loss:
                 min_val_loss = val_loss
@@ -250,7 +260,7 @@ class Client:
                 w_out = torch.from_numpy(w_out).float().to(DEVICE)
 
                 # Forward pass through the feature extractor
-                x = self.model_f_extractor(w_in)
+                x = self.model_f_extractor(w_in, self.eval_mask)
 
                 # Forward pass through the sensor head
                 y = self.model_sensor(x)

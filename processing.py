@@ -147,11 +147,13 @@ if __name__ == "__main__":
     # Create output dir if it doesn't exist
     makedirs(name=OUTPUT_DIR, exist_ok=True)
 
+    # Prepare dataset
     df_normal = clean_dataset(src=INPUT_NORMAL_FILE)
     df_attack = clean_dataset(src=INPUT_ATTACK_FILE)
 
     df_normal, df_attack = normalize_datasets(df_normal, df_attack)
 
+    # Federated clients
     clients_normal = split_clients(df=df_normal)
     clients_attack = split_clients(df=df_attack)
 

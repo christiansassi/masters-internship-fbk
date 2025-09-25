@@ -59,7 +59,13 @@ class ModelFExtractor(nn.Module):
         x = self.dropout(self.relu(self.fc20(x)))
         return x
 
-    def forward(self, x_t_1):
+    def forward(self, x_t_1, mask=None):
+
+        if mask is not None:
+            x_t_1 = x_t_1 * mask
+            active = mask.sum(dim=2, keepdim=True)
+            x_t_1 = x_t_1 / active.clamp(min=1.0)
+
         x_t_1 = x_t_1.transpose(2, 1)
         y_t2 = self.forward_two(x_t_1)
         y_t3 = self.forward_three(x_t_1)
