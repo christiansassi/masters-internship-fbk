@@ -129,7 +129,7 @@ class Client:
 
             train_loss = 0
 
-            for batch_index in np.random.permutation(range(0, len(self.train_input_indices) // batch_size)):
+            for batch_index in np.random.permutation(range(0, len(train_input_indices) // batch_size)):
                 
                 df_in = self.df_train[train_input_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()]
                 df_out = self.df_train[train_output_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()][:, self.output_mask]
@@ -163,7 +163,7 @@ class Client:
 
                 train_loss = train_loss + loss.item()
             
-            train_loss = train_loss / (len(self.train_input_indices) // batch_size) # self.steps
+            train_loss = train_loss / (train_input_indices // batch_size) # self.steps
 
             # Validation
             self.model_f_extractor.eval()
