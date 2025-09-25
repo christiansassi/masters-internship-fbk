@@ -97,9 +97,11 @@ class Client:
 
         self.val_mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
         self.val_mask[:, :, self.input_mask] = 1
+        self.val_mask.to(DEVICE)
 
         self.eval_mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
         self.eval_mask[:, :, self.input_mask] = 1
+        self.eval_mask.to(DEVICE)
 
     def __str__(self) -> str:
         return self.id
@@ -123,6 +125,7 @@ class Client:
 
         train_mask = torch.zeros(batch_size, WINDOW_PAST, len(GLOBAL_INPUTS))
         train_mask[:, :, self.input_mask] = 1
+        train_mask.to(DEVICE)
 
         train_input_indices = self.train_input_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
         train_output_indices = self.train_output_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
