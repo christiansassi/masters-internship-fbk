@@ -163,7 +163,7 @@ class Client:
 
                 train_loss = train_loss + loss.item()
             
-            train_loss = train_loss / (train_input_indices // batch_size) # self.steps
+            train_loss = train_loss / (len(train_input_indices) // batch_size) # self.steps
 
             # Validation
             self.model_f_extractor.eval()
