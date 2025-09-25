@@ -128,9 +128,6 @@ class Client:
         train_output_indices = self.train_output_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
 
         for epoch in range(self.epochs):
-            
-            print(" "*100, end="\r")
-            print(f"Epoch: {epoch+1} / {self.epochs}", end="\r")
 
             # Training
             self.model_f_extractor.train()
