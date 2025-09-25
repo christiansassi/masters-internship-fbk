@@ -1,6 +1,7 @@
 from config import *
 from constants import *
 from models import ModelFExtractor, ModelSensors
+import utils
 
 import torch
 import torch.nn as nn
@@ -12,8 +13,6 @@ import numpy as np
 from copy import deepcopy
 
 import uuid
-
-from time import time
 
 class Client:
     def __init__(
@@ -86,10 +85,6 @@ class Client:
             n_devices_out=len(self.outputs)
         ) if model_sensor is None else deepcopy(model_sensor)
 
-        self.optimizer = torch.optim.SGD(list(self.model_f_extractor.parameters()) + list(self.model_sensor.parameters()), lr=LEARNING_RATE, momentum=MOMENTUM)
-        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=DAICS_PATIENCE)
-        self.criterion = nn.MSELoss()
-
         self.epochs = 0
         self.steps = 0
         self.score = float("-inf")
@@ -110,12 +105,16 @@ class Client:
 
     def train_model_f_extractor(self, model_f_extractor: ModelFExtractor, verbose: bool = False) -> tuple:
 
-        log = lambda msg: print(msg) if verbose else None
+        log = lambda msg, end="\n": print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
 
-        self.model_f_extractor.load_state_dict(model_f_extractor.state_dict())
+        self.model_f_extractor = deepcopy(model_f_extractor)
         
         self.model_f_extractor.to(DEVICE)
         self.model_sensor.to(DEVICE)
+
+        self.optimizer = torch.optim.SGD(list(self.model_f_extractor.parameters()) + list(self.model_sensor.parameters()), lr=LEARNING_RATE, momentum=MOMENTUM)
+        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=DAICS_PATIENCE)
+        self.criterion = nn.MSELoss()
 
         min_train_loss = float("inf")
         min_val_loss = float("inf")
@@ -136,18 +135,15 @@ class Client:
 
         for epoch in range(self.epochs):
 
-            log(f"training {len(train_input_indices) / batch_size} batches")
-            log(f"epoch {epoch + 1} out of {self.epochs}")
-
             # Training
             self.model_f_extractor.train()
             self.model_sensor.train()
 
-            before = time()
-
             train_loss = 0
 
-            for step, batch_index in enumerate(np.random.permutation(range(0, len(train_input_indices) // batch_size)), start=1):
+            steps = len(train_input_indices) // batch_size
+
+            for step, batch_index in enumerate(np.random.permutation(range(0, steps)), start=1):
 
                 df_in = self.df_train[train_input_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()]
                 df_out = self.df_train[train_output_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()][:, self.output_mask]
@@ -181,12 +177,12 @@ class Client:
 
                 train_loss = train_loss + loss.item()
 
-            train_loss = train_loss / (len(train_input_indices) // batch_size) # self.steps
+                log(" " * 100, end="\r")
+                log(f"Epoch {epoch} / {self.epochs} | Step {step} / {steps} | Training loss: {train_loss / step}", end="\r")
+
+            train_loss = train_loss / steps # self.steps
 
             min_train_loss = min(min_train_loss, train_loss)
-
-            log(f"Time elapsed on the dataset {time() - before}")
-            log(f"epoch # {epoch + 1} training loss {train_loss}")
 
             # Validation
             self.model_f_extractor.eval()
@@ -194,9 +190,11 @@ class Client:
 
             val_loss = 0
 
+            steps = len(self.val_input_indices) // BATCH_SIZE
+
             with torch.no_grad():
 
-                for step, batch_index in enumerate(np.random.permutation(range(0, len(self.val_input_indices) // BATCH_SIZE)), start=1):
+                for step, batch_index in enumerate(np.random.permutation(range(0, steps)), start=1):
                     
                     df_in = self.df_val[self.val_input_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()]
                     df_out = self.df_val[self.val_output_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
@@ -223,30 +221,34 @@ class Client:
 
                     val_loss = val_loss + loss.item()
 
-            val_loss = val_loss / (len(self.val_input_indices) // BATCH_SIZE) # self.steps
+                    log(" " * 100, end="\r")
+                    log(f"Epoch {epoch} / {self.epochs} | Validation loss: {val_loss / step}", end="\r")
 
-            log(f"epoch # {epoch + 1} validation loss {val_loss}")
+            val_loss = val_loss / steps # self.steps
 
             # Save best models
             if val_loss < min_val_loss:
                 min_val_loss = val_loss
 
-                log(f"Model saving...epoch {epoch + 1}")
-
-                best_model_f_extractor = self.model_f_extractor.state_dict()
-                best_model_sensor = self.model_sensor.state_dict()
+                best_model_f_extractor = deepcopy(self.model_f_extractor)
+                best_model_sensor = deepcopy(self.model_sensor)
 
             # Decay Learning Rate, pass validation loss for tracking at every epoch
             self.scheduler.step(val_loss)
 
-        self.model_f_extractor.load_state_dict(best_model_f_extractor)
-        self.model_sensor.load_state_dict(best_model_sensor)
+        self.model_f_extractor = deepcopy(best_model_f_extractor)
+        self.model_sensor = deepcopy(best_model_sensor)
 
+        log(" " * 100, end="\r")
+        log(f"Training loss: {min_train_loss} | Validation loss: {min_val_loss}")
+        
         return -min_train_loss, -min_val_loss
 
-    def eval_model_f_extractor(self, model_f_extractor: ModelFExtractor) -> float:
+    def eval_model_f_extractor(self, model_f_extractor: ModelFExtractor, verbose: bool = False) -> float:
         
-        self.model_f_extractor.load_state_dict(model_f_extractor.state_dict())
+        log = lambda msg, end="\n": print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
+
+        self.model_f_extractor = deepcopy(model_f_extractor)
 
         self.model_f_extractor.to(DEVICE)
         self.model_sensor.to(DEVICE)
@@ -257,9 +259,11 @@ class Client:
 
         eval_loss = 0
 
-        with torch.no_grad():
+        steps = len(self.test_input_indices) // BATCH_SIZE
 
-            for batch_index in np.random.permutation(range(0, len(self.test_input_indices) // BATCH_SIZE)):
+        with torch.no_grad():
+            
+            for step, batch_index in enumerate(np.random.permutation(range(0, steps)), start=1):
                 
                 df_in = self.df_test[self.test_input_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()]
                 df_out = self.df_test[self.test_output_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
@@ -286,20 +290,26 @@ class Client:
 
                 eval_loss = eval_loss + loss.item()
 
-        eval_loss = eval_loss / (len(self.test_input_indices) // BATCH_SIZE)
+                log(" " * 100, end="\r")
+                log(f"Step: {step} / {steps} | Evaluation loss: {eval_loss / step}", end="\r")
+                
+        eval_loss = eval_loss / steps
 
         self.score = -eval_loss
+
+        log(" " * 100, end="\r")
+        log(f"Evaluation loss: {eval_loss}")
 
         return -eval_loss
 
     def set_model_f_extractor(self, model_f_extractor: ModelFExtractor):
-        self.model_f_extractor.load_state_dict(model_f_extractor.state_dict())
+        self.model_f_extractor = deepcopy(model_f_extractor)
 
     def get_model_f_extractor(self) -> ModelFExtractor:
         return deepcopy(self.model_f_extractor)
     
     def set_model_sensor(self, model_sensor: ModelSensors):
-        self.model_sensor.load_state_dict(model_sensor.state_dict())
+        self.model_sensor = deepcopy(model_sensor)
 
     def get_model_sensor(self) -> ModelFExtractor:
         return deepcopy(self.model_sensor)

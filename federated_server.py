@@ -125,8 +125,8 @@ class Server:
 
             # Updat eclients
             for index, client in enumerate(selected_clients):
-                print(f"{utils.log_timestamp_status()} Training {index + 1} / {len(selected_clients)}", end="\r")
-                train_loss, val_loss = client.train_model_f_extractor(model_f_extractor=self.model_f_extractor)
+                print(f"{utils.log_timestamp_status()} Training {index + 1} / {len(selected_clients)}")
+                train_loss, val_loss = client.train_model_f_extractor(model_f_extractor=self.model_f_extractor, verbose=VERBOSE)
 
                 client_id = map_clients_ids[str(client)]
 
@@ -143,9 +143,9 @@ class Server:
             self.score = 0
 
             for index, client in enumerate(self.clients):
-                print(f"{utils.log_timestamp_status()} Evaluating {index + 1} / {len(self.clients)}", end="\r")
+                print(f"{utils.log_timestamp_status()} Evaluating {index + 1} / {len(self.clients)}")
 
-                eval_loss = client.eval_model_f_extractor(model_f_extractor=self.model_f_extractor)
+                eval_loss = client.eval_model_f_extractor(model_f_extractor=self.model_f_extractor, verbose=VERBOSE)
 
                 client_id = map_clients_ids[str(client)]
 

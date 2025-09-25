@@ -19,6 +19,8 @@ SIMULATION: bool = False
 GPU: bool = True
 WANDB: bool = False
 
+VERBOSE: bool = True
+
 import torch
 torch.set_default_tensor_type("torch.FloatTensor")
 
