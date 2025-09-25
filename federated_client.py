@@ -104,45 +104,6 @@ class Client:
 
     def train_model_f_extractor(self, model_f_extractor: ModelFExtractor) -> tuple:
 
-        def calculate_safe_steps(model, batch_size):
-            
-            df_in = self.df_train[self.train_input_indices[:batch_size].flatten()]
-
-            batch = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
-            batch[:, self.input_mask] = df_in
-            batch = batch.reshape(batch_size, WINDOW_PAST, -1)
-            batch = torch.from_numpy(batch).float().to(DEVICE)
-
-            sample = batch[:1]
-
-            if GPU:
-                torch.cuda.reset_peak_memory_stats()
-
-                with torch.no_grad():
-                    model(sample)
-
-                sample_memory = torch.cuda.max_memory_allocated()
-                physical_memory = torch.cuda.mem_get_info(DEVICE)[1]
-
-            else:
-                proc = psutil.Process(os.getpid())
-
-                before = proc.memory_info().rss
-
-                for _ in range(100):
-                    with torch.no_grad():
-                        _ = model(sample)
-
-                after = proc.memory_info().rss
-
-                sample_memory = abs(after - before)
-                physical_memory = psutil.virtual_memory().total
-
-            sample_memory = sample_memory / 1024**2
-            physical_memory = physical_memory // 1024**2
-
-            return len(self.train_input_indices) // math.floor(physical_memory / (sample_memory * 2))
-
         self.model_f_extractor = deepcopy(model_f_extractor)
         
         self.model_f_extractor.to(DEVICE)
@@ -154,12 +115,11 @@ class Client:
         best_model_f_extractor = None
         best_model_sensor = None
 
-        # Calculate safe steps
-        self.steps = max(self.steps, calculate_safe_steps(model=self.model_f_extractor, batch_size=len(self.train_input_indices) // self.steps))
-        self.steps = min(self.steps, MAX_STEPS)
-
         # Calculate batch size
-        batch_size = len(self.train_input_indices) // self.steps
+        batch_size = BATCH_SIZE # len(self.train_input_indices) // self.steps
+
+        train_input_indices = self.train_input_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
+        train_output_indices = self.train_output_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
 
         for epoch in range(self.epochs):
             
@@ -171,8 +131,8 @@ class Client:
 
             for batch_index in np.random.permutation(range(0, len(self.train_input_indices) // batch_size)):
                 
-                df_in = self.df_train[self.train_input_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()]
-                df_out = self.df_train[self.train_output_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()][:, self.output_mask]
+                df_in = self.df_train[train_input_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()]
+                df_out = self.df_train[train_output_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()][:, self.output_mask]
 
                 # Input
                 w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
@@ -353,7 +313,7 @@ def generate_non_iid_clients(model_f_extractor: ModelFExtractor = None, model_se
         real_input_indices = attack_data["df_attack_input_indices"][:]
         real_output_indices = attack_data["df_attack_output_indices"][:]
 
-        train_input_indices, train_output_indices = truncate_windows(train_input_indices, train_output_indices)
+        # train_input_indices, train_output_indices = truncate_windows(train_input_indices, train_output_indices)
         val_input_indices, val_output_indices = truncate_windows(val_input_indices, val_output_indices)
         test_input_indices, test_output_indices = truncate_windows(test_input_indices, test_output_indices)
         real_input_indices, real_output_indices = truncate_windows(real_input_indices, real_output_indices)
