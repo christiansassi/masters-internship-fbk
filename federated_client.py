@@ -101,7 +101,7 @@ class Client:
 
         self.eval_mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
         self.eval_mask[:, :, self.input_mask] = 1
-        self.val_mask = self.eval_mask.to(DEVICE)
+        self.eval_mask = self.eval_mask.to(DEVICE)
 
     def __str__(self) -> str:
         return self.id
