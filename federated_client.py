@@ -253,6 +253,10 @@ class Client:
         self.model_f_extractor.to(DEVICE)
         self.model_sensor.to(DEVICE)
 
+        self.optimizer = torch.optim.SGD(list(self.model_f_extractor.parameters()) + list(self.model_sensor.parameters()), lr=LEARNING_RATE, momentum=MOMENTUM)
+        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=DAICS_PATIENCE)
+        self.criterion = nn.MSELoss()
+
         # Training
         self.model_f_extractor.eval()
         self.model_sensor.eval()
