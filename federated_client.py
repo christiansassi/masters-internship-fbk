@@ -13,6 +13,8 @@ from copy import deepcopy
 
 import uuid
 
+from time import time
+
 class Client:
     def __init__(
         self,
@@ -85,7 +87,7 @@ class Client:
         ) if model_sensor is None else deepcopy(model_sensor)
 
         self.optimizer = torch.optim.SGD(list(self.model_f_extractor.parameters()) + list(self.model_sensor.parameters()), lr=LEARNING_RATE, momentum=MOMENTUM)
-        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=PATIENCE)
+        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=DAICS_PATIENCE)
         self.criterion = nn.MSELoss()
 
         self.epochs = 0
@@ -106,9 +108,11 @@ class Client:
     def __str__(self) -> str:
         return self.id
 
-    def train_model_f_extractor(self, model_f_extractor: ModelFExtractor) -> tuple:
+    def train_model_f_extractor(self, model_f_extractor: ModelFExtractor, verbose: bool = False) -> tuple:
 
-        self.model_f_extractor = deepcopy(model_f_extractor)
+        log = lambda msg: print(msg) if verbose else None
+
+        self.model_f_extractor.load_state_dict(model_f_extractor.state_dict())
         
         self.model_f_extractor.to(DEVICE)
         self.model_sensor.to(DEVICE)
@@ -132,9 +136,14 @@ class Client:
 
         for epoch in range(self.epochs):
 
+            log(f"training {len(train_input_indices) / batch_size} batches")
+            log(f"epoch {epoch + 1} out of {self.epochs}")
+
             # Training
             self.model_f_extractor.train()
             self.model_sensor.train()
+
+            before = time()
 
             train_loss = 0
 
@@ -176,6 +185,9 @@ class Client:
 
             min_train_loss = min(min_train_loss, train_loss)
 
+            log(f"Time elapsed on the dataset {time() - before}")
+            log(f"epoch # {epoch + 1} training loss {train_loss}")
+
             # Validation
             self.model_f_extractor.eval()
             self.model_sensor.eval()
@@ -213,24 +225,28 @@ class Client:
 
             val_loss = val_loss / (len(self.val_input_indices) // BATCH_SIZE) # self.steps
 
+            log(f"epoch # {epoch + 1} validation loss {val_loss}")
+
             # Save best models
             if val_loss < min_val_loss:
                 min_val_loss = val_loss
 
-                best_model_f_extractor = deepcopy(self.model_f_extractor)
-                best_model_sensor = deepcopy(self.model_sensor)
+                log(f"Model saving...epoch {epoch + 1}")
+
+                best_model_f_extractor = self.model_f_extractor.state_dict()
+                best_model_sensor = self.model_sensor.state_dict()
 
             # Decay Learning Rate, pass validation loss for tracking at every epoch
             self.scheduler.step(val_loss)
 
-        self.model_f_extractor = deepcopy(best_model_f_extractor)
-        self.model_sensor = deepcopy(best_model_sensor)
+        self.model_f_extractor.load_state_dict(best_model_f_extractor)
+        self.model_sensor.load_state_dict(best_model_sensor)
 
         return -min_train_loss, -min_val_loss
 
     def eval_model_f_extractor(self, model_f_extractor: ModelFExtractor) -> float:
         
-        self.model_f_extractor = deepcopy(model_f_extractor)
+        self.model_f_extractor.load_state_dict(model_f_extractor.state_dict())
 
         self.model_f_extractor.to(DEVICE)
         self.model_sensor.to(DEVICE)
@@ -277,13 +293,13 @@ class Client:
         return -eval_loss
 
     def set_model_f_extractor(self, model_f_extractor: ModelFExtractor):
-        self.model_f_extractor = deepcopy(model_f_extractor)
+        self.model_f_extractor.load_state_dict(model_f_extractor.state_dict())
 
     def get_model_f_extractor(self) -> ModelFExtractor:
         return deepcopy(self.model_f_extractor)
     
     def set_model_sensor(self, model_sensor: ModelSensors):
-        self.model_sensor = deepcopy(model_sensor)
+        self.model_sensor.load_state_dict(model_sensor.state_dict())
 
     def get_model_sensor(self) -> ModelFExtractor:
         return deepcopy(self.model_sensor)

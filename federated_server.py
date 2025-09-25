@@ -66,7 +66,7 @@ class Server:
         
         # Deepcopy global model structure from the first client
         global_model = deepcopy(self.model_f_extractor)
-        global_model = global_model.to(DEVICE)
+        global_model.to(DEVICE)
 
         global_state = global_model.state_dict()
 
@@ -183,7 +183,7 @@ class Server:
                 stop_counter = stop_counter + 1
             
             # Check stop conditions
-            logging.info(f"Patience {stop_counter} / {PATIENCE}")
+            logging.info(f"Patience {stop_counter} / {FLAD_PATIENCE}")
 
             log = {
                 "round": round_num,
@@ -198,7 +198,7 @@ class Server:
 
             run.log(log)
 
-            if stop_counter >= PATIENCE:
+            if stop_counter >= FLAD_PATIENCE:
                 break
         
         self.model_f_extractor = deepcopy(best_model_f_extractor)

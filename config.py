@@ -17,7 +17,7 @@ THRESHOLD_NETWORK: bool = False
 SIMULATION: bool = False
 
 GPU: bool = True
-WANDB: bool = True
+WANDB: bool = False
 
 import torch
 torch.set_default_tensor_type("torch.FloatTensor")

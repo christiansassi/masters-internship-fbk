@@ -84,12 +84,13 @@ VAL_STEP: int = 1
 TEST_STEP: int = 1
 BATCH_SIZE: int = 32
 WIDE_DEEP_EPOCHS: int = 50
-T_EPOCHS: int = 10
 THRESHOLD_EPOCHS = 200
+T_EPOCHS: int = 10
 
 KERNEL_SIZE = 1
 LEARNING_RATE: float = 0.01
 MOMENTUM: float = 0.9
+DAICS_PATIENCE: int = 40
 LOSS: str = "mse"
 
 W_ANOMALY: int = 15
@@ -108,7 +109,7 @@ MIN_EPOCHS: int = 1
 MAX_EPOCHS: int = 5
 MIN_STEPS: int = 10
 MAX_STEPS: int = 1000
-PATIENCE: int = 25
+FLAD_PATIENCE: int = 25
 
 #? === Train, Val, Test ===
 TRAIN: float = 0.8
