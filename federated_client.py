@@ -178,7 +178,7 @@ class Client:
                 train_loss = train_loss + loss.item()
 
                 log(" " * 100, end="\r")
-                log(f"Epoch {epoch} / {self.epochs} | Step {step} / {steps} | Training loss: {train_loss / step}", end="\r")
+                log(f"Epoch: {epoch} / {self.epochs} | Step: {step} / {steps} | Training loss: {train_loss / step}", end="\r")
 
             train_loss = train_loss / steps # self.steps
 
@@ -222,7 +222,7 @@ class Client:
                     val_loss = val_loss + loss.item()
 
                     log(" " * 100, end="\r")
-                    log(f"Epoch {epoch} / {self.epochs} | Validation loss: {val_loss / step}", end="\r")
+                    log(f"Epoch: {epoch} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss / step}", end="\r")
 
             val_loss = val_loss / steps # self.steps
 
