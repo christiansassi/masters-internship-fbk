@@ -124,6 +124,7 @@ INPUT_ATTACK_FILE: str = join(INPUT_DIR, "SWaT_Dataset_Attack.csv")
 
 OUTPUT_DIR: str = join(ROOT_DIR, "processed")
 OUTPUT_FILE: str = join(OUTPUT_DIR, "SWaT_Dataset.h5")
+OUTPUT_FILE_DAICS: str = join(OUTPUT_DIR, "SWaT_Dataset_DAICS.h5")
 
 MODELS: str = "models"
 CHECKPOINTS: str = "checkpoints"

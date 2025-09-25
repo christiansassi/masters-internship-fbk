@@ -210,3 +210,54 @@ if __name__ == "__main__":
         group.create_dataset("df_attack_output_indices", data=df_attack_output_indices)
     
     hf.close()
+
+    # DAICS
+    hf = h5py.File(name=OUTPUT_FILE_DAICS, mode="w")
+    group_normal = hf.create_group(f"normal")
+    group_attack = hf.create_group(f"attack")
+
+    df_normal_train, df_normal_val, df_normal_test = split_train_val_test(df=df_normal)
+
+    (
+        df_normal_train_input_indices, 
+        df_normal_train_output_indices, 
+        
+        df_normal_val_input_indices, 
+        df_normal_val_output_indices, 
+        
+        df_normal_test_input_indices, 
+        df_normal_test_output_indices
+    ) = prepare_sliding_windows(df_train=df_normal_train, df_val=df_normal_val, df_test=df_normal_test)
+
+    group_normal.attrs["columns"] = list(df_normal.columns)
+    group_normal.attrs["inputs"] = list(set(df_normal.columns) - set(["Normal/Attack"]))
+    group_normal.attrs["outputs"] = [column for column in list(df_normal.columns) if column in GLOBAL_OUTPUTS]
+
+    group_normal.create_dataset("df_normal_train", data=df_normal_train.values)
+    group_normal.create_dataset("df_normal_val", data=df_normal_val.values)
+    group_normal.create_dataset("df_normal_test", data=df_normal_test.values)
+
+    group_normal.create_dataset("df_normal_train_input_indices", data=df_normal_train_input_indices)
+    group_normal.create_dataset("df_normal_train_output_indices", data=df_normal_train_output_indices)
+
+    group_normal.create_dataset("df_normal_val_input_indices", data=df_normal_val_input_indices)
+    group_normal.create_dataset("df_normal_val_output_indices", data=df_normal_val_output_indices)
+
+    group_normal.create_dataset("df_normal_test_input_indices", data=df_normal_test_input_indices)
+    group_normal.create_dataset("df_normal_test_output_indices", data=df_normal_test_output_indices)
+
+    (
+        df_attack_input_indices,
+        df_attack_output_indices
+    ) = prepare_sliding_windows(df_test=df_attack)
+
+    group_attack.attrs["columns"] = list(df_attack.columns)
+    group_attack.attrs["inputs"] = list(set(df_attack.columns) - set(["Normal/Attack"]))
+    group_attack.attrs["outputs"] = [column for column in list(df_attack.columns) if column in GLOBAL_OUTPUTS]
+
+    group_attack.create_dataset("df_attack", data=df_attack.values)
+
+    group_attack.create_dataset("df_attack_input_indices", data=df_attack_input_indices)
+    group_attack.create_dataset("df_attack_output_indices", data=df_attack_output_indices)
+
+    hf.close()

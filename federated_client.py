@@ -165,6 +165,8 @@ class Client:
             
             train_loss = train_loss / (len(train_input_indices) // batch_size) # self.steps
 
+            min_train_loss = min(min_train_loss, train_loss)
+
             # Validation
             self.model_f_extractor.eval()
             self.model_sensor.eval()
@@ -202,8 +204,6 @@ class Client:
             val_loss = val_loss / (len(self.val_input_indices) // BATCH_SIZE) # self.steps
             
             # Save best models
-            min_train_loss = min(min_train_loss, train_loss)
-
             if val_loss < min_val_loss:
                 min_val_loss = val_loss
 
