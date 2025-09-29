@@ -85,6 +85,10 @@ class Client:
             n_devices_out=len(self.outputs)
         ) if model_sensor is None else deepcopy(model_sensor)
 
+        self.optimizer = torch.optim.SGD(list(self.model_f_extractor.parameters()) + list(self.model_sensor.parameters()), lr=LEARNING_RATE, momentum=MOMENTUM)
+        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=DAICS_PATIENCE)
+        self.criterion = nn.MSELoss()
+
         self.epochs = 0
         self.steps = 0
         self.score = float("-inf")
@@ -107,14 +111,10 @@ class Client:
 
         log = lambda msg, end="\n": print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
 
-        self.model_f_extractor = deepcopy(model_f_extractor)
+        self.model_f_extractor.load_state_dict(model_f_extractor.state_dict())
         
         self.model_f_extractor.to(DEVICE)
         self.model_sensor.to(DEVICE)
-
-        self.optimizer = torch.optim.SGD(list(self.model_f_extractor.parameters()) + list(self.model_sensor.parameters()), lr=LEARNING_RATE, momentum=MOMENTUM)
-        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=DAICS_PATIENCE)
-        self.criterion = nn.MSELoss()
 
         min_train_loss = float("inf")
         min_val_loss = float("inf")
@@ -122,16 +122,32 @@ class Client:
         best_model_f_extractor = None
         best_model_sensor = None
 
-        # Calculate batch size
-        #TODO adjust batch_size dynamically
-        batch_size = BATCH_SIZE # len(self.train_input_indices) // self.steps
+        # Calculate batch size based on hardware specs
+        batch_size = utils.get_safe_batch_size(model=self.model_f_extractor, sample=np.zeros((1, WINDOW_PAST, len(GLOBAL_INPUTS)), dtype=np.float32))
+
+        # Calculate data len based on batch_size
+        train_input_indices = self.train_input_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
+        train_output_indices = self.train_output_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
+
+        # Calculate steps
+        steps = len(train_input_indices) // batch_size
+
+        # Choose the max steps -> less memory usage
+        self.steps = max(self.steps, steps)
+
+        # Upper limit for steps
+        self.steps = min(self.steps, MAX_STEPS)
+
+        # Recalculate batch_size
+        batch_size = len(self.train_input_indices) // self.steps
+
+        # Recalculate data len
+        train_input_indices = self.train_input_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
+        train_output_indices = self.train_output_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
 
         train_mask = torch.zeros(batch_size, WINDOW_PAST, len(GLOBAL_INPUTS))
         train_mask[:, :, self.input_mask] = 1
         train_mask = train_mask.to(DEVICE)
-
-        train_input_indices = self.train_input_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
-        train_output_indices = self.train_output_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
 
         for epoch in range(self.epochs):
 
@@ -230,14 +246,14 @@ class Client:
             if val_loss < min_val_loss:
                 min_val_loss = val_loss
 
-                best_model_f_extractor = deepcopy(self.model_f_extractor)
-                best_model_sensor = deepcopy(self.model_sensor)
+                best_model_f_extractor = self.model_f_extractor.state_dict()
+                best_model_sensor = self.model_sensor.state_dict()
 
             # Decay Learning Rate, pass validation loss for tracking at every epoch
             self.scheduler.step(val_loss)
 
-        self.model_f_extractor = deepcopy(best_model_f_extractor)
-        self.model_sensor = deepcopy(best_model_sensor)
+        self.model_f_extractor.load_state_dict(best_model_f_extractor)
+        self.model_sensor.load_state_dict(best_model_sensor)
 
         log(" " * 100, end="\r")
         log(f"Training loss: {min_train_loss} | Validation loss: {min_val_loss}")
@@ -248,7 +264,7 @@ class Client:
         
         log = lambda msg, end="\n": print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
 
-        self.model_f_extractor = deepcopy(model_f_extractor)
+        self.model_f_extractor.load_state_dict(model_f_extractor.state_dict())
 
         self.model_f_extractor.to(DEVICE)
         self.model_sensor.to(DEVICE)
@@ -307,13 +323,13 @@ class Client:
         return -eval_loss
 
     def set_model_f_extractor(self, model_f_extractor: ModelFExtractor):
-        self.model_f_extractor = deepcopy(model_f_extractor)
+        self.model_f_extractor.load_state_dict(model_f_extractor.state_dict())
 
     def get_model_f_extractor(self) -> ModelFExtractor:
         return deepcopy(self.model_f_extractor)
     
     def set_model_sensor(self, model_sensor: ModelSensors):
-        self.model_sensor = deepcopy(model_sensor)
+        self.model_sensor.load_state_dict(model_sensor.state_dict())
 
     def get_model_sensor(self) -> ModelFExtractor:
         return deepcopy(self.model_sensor)

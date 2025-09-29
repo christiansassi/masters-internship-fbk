@@ -8,8 +8,9 @@
 **/clients
 **/datasets
 **/keys
-**/wandb
+**/logs
 **/old_versions
+**/wandb
 
 models/*
 
