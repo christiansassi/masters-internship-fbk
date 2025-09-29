@@ -99,7 +99,6 @@ class Client:
         self.scheduler = ReduceLROnPlateau(self.optimizer_wide_deep, patience=DAICS_PATIENCE)
         self.criterion_wide_deep = nn.MSELoss()
 
-
         self.epochs = 0
         self.steps = 0
         self.score = float("-inf")
