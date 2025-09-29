@@ -118,7 +118,7 @@ class Client:
     def __str__(self) -> str:
         return self.id
 
-    def train_model_f_extractor(self, model_f_extractor: ModelFExtractor, verbose: bool = False) -> tuple:
+    def train_model_f_extractor_and_sensor(self, model_f_extractor: ModelFExtractor, verbose: bool = False) -> tuple:
 
         log = lambda msg, end="\n": print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
 
@@ -271,7 +271,7 @@ class Client:
         
         return -min_train_loss, -min_val_loss
 
-    def eval_model_f_extractor(self, model_f_extractor: ModelFExtractor, verbose: bool = False) -> float:
+    def eval_model_f_extractor_and_sensor(self, model_f_extractor: ModelFExtractor, verbose: bool = False) -> float:
         
         log = lambda msg, end="\n": print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
 
