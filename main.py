@@ -28,11 +28,11 @@ if __name__ == "__main__":
     # Threshold Network training (local)
     if config.THRESHOLD_NETWORK:
         
-        makedirs(name=THRESHOLD_NETWORK_CHECKPOINT, exist_ok=True)
+        makedirs(name=THRESHOLD_NETWORK, exist_ok=True)
 
         session_id = str(int(datetime.now().timestamp()))
 
-        model_path = join(THRESHOLD_NETWORK_CHECKPOINT, f"{THRESHOLD_NETWORK_BASENAME}-{session_id}.pt")
+        model_path = join(THRESHOLD_NETWORK, f"{THRESHOLD_NETWORK_BASENAME}-{session_id}.pt")
         model_dict = {}
 
         run = config.WandbConfig.init_run(f"[{'GPU' if config.GPU else 'CPU'}] Threshold Network")
@@ -64,7 +64,7 @@ if __name__ == "__main__":
             title=f"Training Loss"
         )
 
-        run.log(bar_plot)
+        run.log({"Threshold Network": bar_plot})
         run.finish()
 
     # # Simulation
