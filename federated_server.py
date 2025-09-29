@@ -110,6 +110,7 @@ class Server:
             "eval_loss": float("-inf"),
             "epochs": None,
             "steps": None,
+            "batch_size": None,
             "selected": None
         } for client in map_clients_ids.values()}
 
@@ -165,6 +166,7 @@ class Server:
                 stats[client_id]["eval_loss"] = eval_loss
                 stats[client_id]["epochs"] = client.epochs
                 stats[client_id]["steps"] = client.steps
+                stats[client_id]["batch_size"] = len(client.train_input_indices) // client.steps
 
                 self.score = self.score + eval_loss
 

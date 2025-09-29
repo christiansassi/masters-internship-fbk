@@ -95,9 +95,9 @@ class Client:
             window_size_out=WINDOW_PRESENT
         ) if pred_error_model is None else deepcopy(pred_error_model)
 
-        self.optimizer_wide_deep = torch.optim.SGD(list(self.model_f_extractor.parameters()) + list(self.model_sensor.parameters()), lr=LEARNING_RATE, momentum=MOMENTUM)
-        self.scheduler = ReduceLROnPlateau(self.optimizer_wide_deep, patience=DAICS_PATIENCE)
-        self.criterion_wide_deep = nn.MSELoss()
+        self.optimizer = torch.optim.SGD(list(self.model_f_extractor.parameters()) + list(self.model_sensor.parameters()), lr=LEARNING_RATE, momentum=MOMENTUM)
+        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=DAICS_PATIENCE)
+        self.criterion = nn.MSELoss()
 
         self.epochs = 0
         self.steps = 0
@@ -186,7 +186,7 @@ class Client:
                 w_out = torch.from_numpy(w_out).float().to(DEVICE)
 
                 # Reset gradients
-                self.optimizer_wide_deep.zero_grad()
+                self.optimizer.zero_grad()
 
                 # Forward pass through the feature extractor
                 x = self.model_f_extractor(w_in, train_mask)
@@ -195,11 +195,11 @@ class Client:
                 y = self.model_sensor(x)
 
                 # Compute loss
-                loss = self.criterion_wide_deep(y, w_out)
+                loss = self.criterion(y, w_out)
 
                 # One SGD step
                 loss.backward()
-                self.optimizer_wide_deep.step()
+                self.optimizer.step()
 
                 train_loss = train_loss + loss.item()
 
@@ -243,7 +243,7 @@ class Client:
                     y = self.model_sensor(x)
 
                     # Compute loss
-                    loss = self.criterion_wide_deep(y, w_out)
+                    loss = self.criterion(y, w_out)
 
                     val_loss = val_loss + loss.item()
 
@@ -312,7 +312,7 @@ class Client:
                 y = self.model_sensor(x)
 
                 # Compute loss
-                loss = self.criterion_wide_deep(y, w_out)
+                loss = self.criterion(y, w_out)
 
                 eval_loss = eval_loss + loss.item()
 
