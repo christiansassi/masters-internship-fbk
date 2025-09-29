@@ -93,8 +93,10 @@ class Server:
     
     def federated_learning(self):
 
-        session_id = str(int(datetime.now().timestamp()))
+        makedirs(name=WIDE_DEEP_NETWORK_CHECKPOINT, exist_ok=True)
 
+        session_id = str(int(datetime.now().timestamp()))
+        
         run = WandbConfig.init_run(f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network")
 
         map_clients_ids = {str(client): f"{'-'.join(sorted(client.inputs))}" for client in self.clients}
@@ -124,8 +126,8 @@ class Server:
             selected_clients = self.select_clients()
 
             # Updat eclients
-            for index, client in enumerate(selected_clients):
-                print(f"{utils.log_timestamp_status()} Training {index + 1} / {len(selected_clients)}")
+            for index, client in enumerate(selected_clients, start=1):
+                print(f"{utils.log_timestamp_status()} Training {index} / {len(selected_clients)}")
                 train_loss, val_loss = client.train_model_f_extractor(model_f_extractor=self.model_f_extractor, verbose=VERBOSE)
 
                 client_id = map_clients_ids[str(client)]
@@ -142,8 +144,8 @@ class Server:
             # Evaluate clients
             self.score = 0
 
-            for index, client in enumerate(self.clients):
-                print(f"{utils.log_timestamp_status()} Evaluating {index + 1} / {len(self.clients)}")
+            for index, client in enumerate(self.clients, start=1):
+                print(f"{utils.log_timestamp_status()} Evaluating {index} / {len(self.clients)}")
 
                 eval_loss = client.eval_model_f_extractor(model_f_extractor=self.model_f_extractor, verbose=VERBOSE)
 
@@ -166,8 +168,6 @@ class Server:
 
                 best_score = self.score
                 best_model_f_extractor = deepcopy(self.model_f_extractor)
-
-                makedirs(name=WIDE_DEEP_NETWORK_CHECKPOINT, exist_ok=True)
 
                 model_path = join(WIDE_DEEP_NETWORK_CHECKPOINT, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.pt")
                 model_dict = {
@@ -205,5 +205,17 @@ class Server:
 
         for client in self.clients:
             client.set_model_f_extractor(model_f_extractor=self.model_f_extractor)
+
+        makedirs(name=WIDE_DEEP_NETWORK, exist_ok=True)
+
+        model_path = join(WIDE_DEEP_NETWORK, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.pt")
+        model_dict = {
+            "model_f_extractor": best_model_f_extractor.state_dict(),
+            "model_sensors": {
+                str(client): client.model_sensor.state_dict()
+            for client in self.clients}
+        }
+
+        torch.save(model_dict, model_path)
 
         run.finish()

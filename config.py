@@ -12,8 +12,8 @@ dotenv.load_dotenv()
 
 from types import SimpleNamespace
 
-WIDE_DEEP_NETWORK: bool = True
-THRESHOLD_NETWORK: bool = False
+WIDE_DEEP_NETWORK: bool = False
+THRESHOLD_NETWORK: bool = True
 SIMULATION: bool = False
 
 GPU: bool = True
