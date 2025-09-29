@@ -104,10 +104,13 @@ class Server:
 
         map_clients_ids = {str(client): f"{'-'.join(sorted(client.inputs))}" for client in self.clients}
 
-        losses = {client: {
+        stats = {client: {
             "train_loss": float("-inf"),
             "val_loss": float("-inf"),
-            "eval_loss": float("-inf")
+            "eval_loss": float("-inf"),
+            "epochs": None,
+            "steps": None,
+            "selected": None
         } for client in map_clients_ids.values()}
 
         round_num = 0
@@ -125,19 +128,24 @@ class Server:
             print("")
             logging.info(f"---------- Round {round_num} ----------")
 
+            for client in self.clients:
+                client_id = map_clients_ids[str(client)]
+                stats[client_id]["selected"] = 0
+
             # Select clients
             selected_clients = self.select_clients()
 
-            # Updat eclients
+            # Update eclients
             for index, client in enumerate(selected_clients, start=1):
                 print(f"{utils.log_timestamp_status()} Training {index} / {len(selected_clients)}")
                 train_loss, val_loss = client.train_model_f_extractor_and_sensor(model_f_extractor=self.model_f_extractor, verbose=VERBOSE)
 
                 client_id = map_clients_ids[str(client)]
 
-                losses[client_id]["train_loss"] = train_loss
-                losses[client_id]["val_loss"] = val_loss
-            
+                stats[client_id]["train_loss"] = train_loss
+                stats[client_id]["val_loss"] = val_loss
+                stats[client_id]["selected"] = 1
+
             logging.info(f"Trained {len(selected_clients)} clients")
 
             # Model aggregations
@@ -154,7 +162,9 @@ class Server:
 
                 client_id = map_clients_ids[str(client)]
 
-                losses[client_id]["eval_loss"] = eval_loss
+                stats[client_id]["eval_loss"] = eval_loss
+                stats[client_id]["epochs"] = client.epochs
+                stats[client_id]["steps"] = client.steps
 
                 self.score = self.score + eval_loss
 
@@ -184,7 +194,6 @@ class Server:
             else:
                 stop_counter = stop_counter + 1
             
-            # Check stop conditions
             logging.info(f"Patience {stop_counter} / {FLAD_PATIENCE}")
 
             log = {
@@ -196,10 +205,11 @@ class Server:
                 "time_per_round": time() - start,
             }
 
-            log.update(losses)
+            log.update(stats)
 
             run.log(log)
 
+            # Check stop conditions
             if stop_counter >= FLAD_PATIENCE:
                 break
         
