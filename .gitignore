@@ -12,8 +12,6 @@
 **/old_versions
 **/wandb
 
-models/*
-
 !models/threshold_networks/
 !models/wide_deep_networks/
 
