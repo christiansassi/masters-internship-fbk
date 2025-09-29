@@ -30,7 +30,7 @@ def configure_log(level: int = logging.INFO):
 def log_timestamp_status() -> str:
     return f"[{datetime.now().strftime('%H:%M:%S')}][{logging.getLevelName(logging.getLogger().getEffectiveLevel())}]"
 
-def get_safe_batch_size(model, sample, target_frac=0.5, n_runs=10, grad_factor=2.0):
+def get_safe_batch_size(model, sample, target_frac=0.75, n_runs=50, grad_factor=2.0):
 
     if config.GPU:
         device = "cuda:0"
