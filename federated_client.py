@@ -205,9 +205,9 @@ class Client:
                 train_loss = train_loss + loss.item()
 
                 log(" " * 100, end="\r")
-                log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Training loss: {min_train_loss if min_train_loss != float('inf') else '-'}", end="\r")
+                log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Training loss {train_loss / step}", end="\r")
 
-            train_loss = train_loss / steps # self.steps
+            train_loss = train_loss / steps
 
             min_train_loss = min(min_train_loss, train_loss)
 
@@ -249,9 +249,9 @@ class Client:
                     val_loss = val_loss + loss.item()
 
                     log(" " * 100, end="\r")
-                    log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {min_val_loss if min_val_loss != float('inf') else '-'}", end="\r")
+                    log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss / step}", end="\r")
 
-            val_loss = val_loss / steps # self.steps
+            val_loss = val_loss / steps
 
             # Save best models
             if val_loss < min_val_loss:
@@ -382,6 +382,7 @@ class Client:
             log(" " * 100, end="\r")
             log(f"Calculating errors {step + 1} / {steps}", end="\r")
 
+        # Craft input and output for the threshold model
         all_predicted = np.trim_zeros(all_predicted)
         all_predicted = scipy.signal.medfilt(all_predicted, kernel_size=MED_FILTER_LAG)
 
@@ -411,35 +412,40 @@ class Client:
             steps = len(input_indices) // BATCH_SIZE
 
             for step, batch_index in enumerate(np.random.permutation(range(0, steps)), start=1):
+
                 df_in = all_predicted[input_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE]]
                 df_out = all_predicted[output_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE]]
 
+                # Input and output
                 w_in = torch.from_numpy(df_in[:, :, None]).float().to(DEVICE)
                 w_out = torch.from_numpy(df_out[:, :, None]).float().to(DEVICE)
 
-                self.pred_error_model.zero_grad()
+                optimizer.zero_grad()
 
                 y = self.pred_error_model(w_in.float().to(DEVICE)).abs()
 
-                if np.all(y.detach().cpu().numpy() == 0):
-                    self.pred_error_model.zero_grad()
+                if torch.all(y == 0).item():
+                    optimizer.zero_grad()
 
                     self.pred_error_model.apply(lambda model: model.reset_parameters() if isinstance(model, nn.Conv1d) or isinstance(model, nn.Linear) else None)
 
                     y = self.pred_error_model(w_in.float().to(DEVICE)).abs()
                 
+                # Compute loss
                 loss = criterion(y, w_out)
 
+                # One SGD step
                 loss.backward(retain_graph=True)
                 optimizer.step()
 
                 train_loss = train_loss + loss.detach().cpu().numpy()
                 
                 log(" " * 100, end="\r")
-                log(f"Epoch: {epoch + 1} / {THRESHOLD_EPOCHS} | Step: {step} / {steps} | Training loss: {min_train_loss if min_train_loss != float('inf') else '-'}", end="\r")
+                log(f"Epoch: {epoch + 1} / {THRESHOLD_EPOCHS} | Step: {step} / {steps} | Training loss: {train_loss / step}", end="\r")
 
             train_loss = train_loss / steps
 
+            # Save best model
             if train_loss < min_train_loss:
                 min_train_loss = train_loss
 
@@ -463,6 +469,12 @@ class Client:
 
     def get_model_sensor(self) -> ModelFExtractor:
         return deepcopy(self.model_sensor)
+
+    def set_pred_error_model(self, pred_error_model: PredErrorModel | OrderedDict):
+        self.pred_error_model.load_state_dict(pred_error_model.state_dict() if isinstance(pred_error_model, PredErrorModel) else pred_error_model)
+
+    def get_pred_error_model(self) -> PredErrorModel:
+        return deepcopy(self.pred_error_model)
 
 def generate_non_iid_clients(model_f_extractor: ModelFExtractor = None, model_sensor: ModelSensors = None) -> list[Client]:
 

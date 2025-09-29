@@ -69,6 +69,5 @@ if __name__ == "__main__":
 
     # # Simulation
     # if config.SIMULATION:
-
-    #     for client in clients:
-    #         client.run_simulation_v1()
+    #   #TODO
+    #   pass
