@@ -97,6 +97,9 @@ class Server:
 
         session_id = str(int(datetime.now().timestamp()))
         
+        model_path = join(WIDE_DEEP_NETWORK_CHECKPOINT, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.pt")
+        model_dict = {}
+
         run = WandbConfig.init_run(f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network")
 
         map_clients_ids = {str(client): f"{'-'.join(sorted(client.inputs))}" for client in self.clients}
@@ -169,7 +172,6 @@ class Server:
                 best_score = self.score
                 best_model_f_extractor = deepcopy(self.model_f_extractor)
 
-                model_path = join(WIDE_DEEP_NETWORK_CHECKPOINT, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.pt")
                 model_dict = {
                     "model_f_extractor": best_model_f_extractor.state_dict(),
                     "model_sensors": {

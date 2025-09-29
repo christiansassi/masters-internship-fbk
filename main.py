@@ -35,7 +35,11 @@ if __name__ == "__main__":
         model_path = join(THRESHOLD_NETWORK_CHECKPOINT, f"{THRESHOLD_NETWORK_BASENAME}-{session_id}.pt")
         model_dict = {}
 
+        run = config.WandbConfig.init_run(f"[{'GPU' if config.GPU else 'CPU'}] Threshold Network")
+
         wide_deep_network = torch.load(join(WIDE_DEEP_NETWORK, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"), map_location=config.DEVICE)
+
+        data = []
 
         for index, client in enumerate(clients, start=1):
 
@@ -47,8 +51,21 @@ if __name__ == "__main__":
             train_loss = client.train_pred_error_model(verbose=config.VERBOSE)
 
             model_dict[str(client)] = client.pred_error_model.state_dict()
-        
+
+            data.append([f"{'-'.join(sorted(client.inputs))}", train_loss])
+
         torch.save(model_dict, model_path)
+
+        table = config.WandbConfig.table(data=data, columns=["client", "loss"])
+        bar_plot = config.WandbConfig.plot_bar(
+            table=table,
+            label="client",
+            value="loss",
+            title=f"Training Loss"
+        )
+
+        run.log(bar_plot)
+        run.finish()
 
     # # Simulation
     # if config.SIMULATION:
