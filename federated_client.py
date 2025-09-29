@@ -132,26 +132,30 @@ class Client:
         best_model_f_extractor = None
         best_model_sensor = None
 
-        # Calculate batch size based on hardware specs
-        batch_size = utils.get_safe_batch_size(model=self.model_f_extractor, sample=np.zeros((1, WINDOW_PAST, len(GLOBAL_INPUTS)), dtype=np.float32))
+        # # Calculate batch size based on hardware specs
+        # batch_size = utils.get_safe_batch_size(model=self.model_f_extractor, sample=np.zeros((1, WINDOW_PAST, len(GLOBAL_INPUTS)), dtype=np.float32))
 
-        # Calculate data len based on batch_size
-        train_input_indices = self.train_input_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
-        train_output_indices = self.train_output_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
+        # # Calculate data len based on batch_size
+        # train_input_indices = self.train_input_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
+        # train_output_indices = self.train_output_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
 
-        # Calculate steps
-        steps = len(train_input_indices) // batch_size
+        # # Calculate steps
+        # steps = len(train_input_indices) // batch_size
 
-        # Choose the max steps -> less memory usage
-        self.steps = max(self.steps, steps)
+        # # Choose the max steps -> less memory usage
+        # self.steps = max(self.steps, steps)
 
-        # Upper limit for steps
-        self.steps = min(self.steps, MAX_STEPS)
+        # # Upper limit for steps
+        # self.steps = min(self.steps, MAX_STEPS)
 
-        # Recalculate batch_size
+        # Calculate batch_size
         batch_size = len(self.train_input_indices) // self.steps
+        batch_size = min(batch_size, WIDE_DEEP_MAX_BATCH_SIZE)
 
-        # Recalculate data len
+        # Recalculate steps
+        self.size = len(self.train_input_indices) // batch_size
+
+        # Calculate indices
         train_input_indices = self.train_input_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
         train_output_indices = self.train_output_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
 
