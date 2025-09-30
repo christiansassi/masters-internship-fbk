@@ -154,6 +154,10 @@ class Client:
 
         # Recalculate steps
         self.steps = len(self.train_input_indices) // batch_size
+        self.steps = min(self.steps, MAX_STEPS)
+
+        # Recalculate batch_size
+        batch_size = len(self.train_input_indices) // self.steps
 
         # Calculate indices
         train_input_indices = self.train_input_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
