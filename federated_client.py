@@ -390,7 +390,7 @@ class Client:
             log(f"Calculating errors {step + 1} / {steps}", end="\r")
 
         # Craft input and output for the threshold model
-        all_predicted = np.trim_zeros(all_predicted)
+        all_predicted = np.trim_zeros(all_predicted) if not np.all(all_predicted == 0) else all_predicted
         all_predicted = scipy.signal.medfilt(all_predicted, kernel_size=MED_FILTER_LAG)
 
         input_indices = (np.arange(SAMPLING_START, len(all_predicted), VAL_STEP) - HORIZON - WINDOW_PRESENT)[:, None] - np.arange(1, WINDOW_PAST + 1)
