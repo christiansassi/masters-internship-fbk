@@ -18,7 +18,7 @@ import uuid
 from types import SimpleNamespace
 
 WIDE_DEEP_NETWORK: bool = False
-THRESHOLD_NETWORK: bool = True
+THRESHOLD_NETWORK: bool = False
 SIMULATION: bool = False
 
 GPU: bool = True
@@ -37,6 +37,9 @@ if GPU:
         GPU = True
         DEVICE = torch.device("cuda:0")
         hardware = f"{torch.cuda.get_device_name(0)} {torch.cuda.get_device_properties(0).total_memory}"
+
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats()
 
     else:
         DEVICE = torch.device("cpu")
