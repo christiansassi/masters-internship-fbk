@@ -100,7 +100,7 @@ class Server:
         model_path = join(WIDE_DEEP_NETWORK_CHECKPOINT, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.pt")
         model_dict = {}
 
-        run = WandbConfig.init_run(f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network")
+        run = WandbConfig.init_run(name=f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network", tags=["pytorch", "wide-deep"])
 
         map_clients_ids = {str(client): f"{'-'.join(sorted(client.inputs))}" for client in self.clients}
 
