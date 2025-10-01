@@ -35,7 +35,7 @@ if __name__ == "__main__":
         model_path = join(THRESHOLD_NETWORK, f"{THRESHOLD_NETWORK_BASENAME}-{session_id}.pt")
         model_dict = {}
 
-        run = config.WandbConfig.init_run(f"[{'GPU' if config.GPU else 'CPU'}] Threshold Network")
+        run = config.WandbConfig.init_run(name=f"[{'GPU' if config.GPU else 'CPU'}] Threshold Network", tags=["pytorch", "threshold"])
 
         wide_deep_network = torch.load(join(WIDE_DEEP_NETWORK, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"), map_location=config.DEVICE)
 

@@ -59,14 +59,15 @@ class WandbConfig:
     PROJECT: str = os.getenv("PROJECT")
     
     @classmethod
-    def init_run(cls, name: str):
+    def init_run(cls, name: str, tags: list[str] = []):
 
         if WANDB:
             
             return wandb.init(
                 entity=cls.ENTITY,
                 project=cls.PROJECT,
-                name=name
+                name=name,
+                tags=tags
             )
         
         else:
