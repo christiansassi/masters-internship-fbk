@@ -114,12 +114,12 @@ class Client:
         self.eval_mask[:, :, self.input_mask] = 1
         self.eval_mask = self.eval_mask.to(DEVICE)
 
+        self.log = lambda msg, end="\n", verbose=False: print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
+
     def __str__(self) -> str:
         return self.id
 
     def train_model_f_extractor_and_sensor(self, model_f_extractor: ModelFExtractor, verbose: bool = False) -> tuple:
-
-        log = lambda msg, end="\n": print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
 
         self.model_f_extractor.load_state_dict(model_f_extractor.state_dict())
         
@@ -211,8 +211,8 @@ class Client:
 
                 train_loss = train_loss + loss.item()
 
-                log(" " * 100, end="\r")
-                log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Training loss {train_loss / step}", end="\r")
+                self.log(" " * 100, end="\r", verbose=verbose)
+                self.log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Training loss {train_loss / step}", end="\r", verbose=verbose)
 
             train_loss = train_loss / steps
 
@@ -255,8 +255,8 @@ class Client:
 
                     val_loss = val_loss + loss.item()
 
-                    log(" " * 100, end="\r")
-                    log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss / step}", end="\r")
+                    self.log(" " * 100, end="\r", verbose=verbose)
+                    self.log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss / step}", end="\r", verbose=verbose)
 
             val_loss = val_loss / steps
 
@@ -273,15 +273,13 @@ class Client:
         self.model_f_extractor.load_state_dict(best_model_f_extractor)
         self.model_sensor.load_state_dict(best_model_sensor)
 
-        log(" " * 100, end="\r")
-        log(f"Training loss: {min_train_loss} | Validation loss: {min_val_loss}")
+        self.log(" " * 100, end="\r", verbose=verbose)
+        self.log(f"Training loss: {min_train_loss} | Validation loss: {min_val_loss}", verbose=verbose)
         
         return -min_train_loss, -min_val_loss
 
     def eval_model_f_extractor_and_sensor(self, model_f_extractor: ModelFExtractor, verbose: bool = False) -> float:
         
-        log = lambda msg, end="\n": print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
-
         self.model_f_extractor.load_state_dict(model_f_extractor.state_dict())
 
         self.model_f_extractor.to(DEVICE)
@@ -324,22 +322,20 @@ class Client:
 
                 eval_loss = eval_loss + loss.item()
 
-                log(" " * 100, end="\r")
-                log(f"Step: {step} / {steps} | Evaluation loss: {eval_loss / step}", end="\r")
+                self.log(" " * 100, end="\r", verbose=verbose)
+                self.log(f"Step: {step} / {steps} | Evaluation loss: {eval_loss / step}", end="\r", verbose=verbose)
                 
         eval_loss = eval_loss / steps
 
         self.score = -eval_loss
 
-        log(" " * 100, end="\r")
-        log(f"Evaluation loss: {eval_loss}")
+        self.log(" " * 100, end="\r", verbose=verbose)
+        self.log(f"Evaluation loss: {eval_loss}", verbose=verbose)
 
         return -eval_loss
 
     def train_pred_error_model(self, verbose: bool = False):
         
-        log = lambda msg, end="\n": print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
-
         self.model_f_extractor.to(DEVICE)
         self.model_sensor.to(DEVICE)
 
@@ -386,8 +382,8 @@ class Client:
 
             all_predicted[train_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE, 0]] =  loss.detach().cpu().numpy()[:, 0]
 
-            log(" " * 100, end="\r")
-            log(f"Calculating errors {step + 1} / {steps}", end="\r")
+            self.log(" " * 100, end="\r", verbose=verbose)
+            self.log(f"Calculating errors {step + 1} / {steps}", end="\r", verbose=verbose)
 
         # Craft input and output for the threshold model
         all_predicted = np.trim_zeros(all_predicted) if not np.all(all_predicted == 0) else all_predicted
@@ -447,8 +443,8 @@ class Client:
 
                 train_loss = train_loss + loss.detach().cpu().numpy()
                 
-                log(" " * 100, end="\r")
-                log(f"Epoch: {epoch + 1} / {THRESHOLD_EPOCHS} | Step: {step} / {steps} | Training loss: {train_loss / step}", end="\r")
+                self.log(" " * 100, end="\r", verbose=verbose)
+                self.log(f"Epoch: {epoch + 1} / {THRESHOLD_EPOCHS} | Step: {step} / {steps} | Training loss: {train_loss / step}", end="\r", verbose=verbose)
 
             train_loss = train_loss / steps
 
@@ -460,8 +456,8 @@ class Client:
         
         self.pred_error_model.load_state_dict(best_pred_error_model)
 
-        log(" " * 100, end="\r")
-        log(f"Training loss: {min_train_loss}")
+        self.log(" " * 100, end="\r", verbose=verbose)
+        self.log(f"Training loss: {min_train_loss}", verbose=verbose)
 
         return -min_train_loss
 
