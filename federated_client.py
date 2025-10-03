@@ -339,51 +339,59 @@ class Client:
         self.model_f_extractor.to(DEVICE)
         self.model_sensor.to(DEVICE)
 
-        criterion = nn.MSELoss(reduction="none")
-
         self.model_f_extractor.eval()
         self.model_sensor.eval()
 
-        train_input_indices = self.test_input_indices[:(len(self.test_input_indices) // BATCH_SIZE) * BATCH_SIZE]
-        train_output_indices = self.test_output_indices[:(len(self.test_output_indices) // BATCH_SIZE) * BATCH_SIZE]
+        criterion = nn.MSELoss(reduction="none")
 
-        train_mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
-        train_mask[:, :, self.input_mask] = 1
-        train_mask = train_mask.to(DEVICE)
+        def calculate_errors(df, input_indices, output_indices):
 
-        all_predicted = np.zeros(len(self.df_test), dtype=np.float32)
+            train_input_indices = input_indices[:(len(input_indices) // BATCH_SIZE) * BATCH_SIZE]
+            train_output_indices = output_indices[:(len(output_indices) // BATCH_SIZE) * BATCH_SIZE]
 
-        steps = len(train_input_indices) // BATCH_SIZE
+            train_mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
+            train_mask[:, :, self.input_mask] = 1
+            train_mask = train_mask.to(DEVICE)
 
-        for step in range(0, steps):
+            all_predicted = np.zeros(len(df), dtype=np.float32)
 
-            df_in = self.df_test[train_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()]
-            df_out = self.df_test[train_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
+            steps = len(train_input_indices) // BATCH_SIZE
 
-            # Input
-            w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
-            w_in[:, self.input_mask] = df_in
+            for step in range(0, steps):
 
-            w_in = w_in.reshape(BATCH_SIZE, WINDOW_PAST, -1)
-            w_in = torch.from_numpy(w_in).float().to(DEVICE)
+                df_in = df[train_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()]
+                df_out = df[train_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
 
-            # Output
-            w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
-            w_out = torch.from_numpy(w_out).float().to(DEVICE)
+                # Input
+                w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+                w_in[:, self.input_mask] = df_in
 
-            # Forward pass through the feature extractor
-            x = self.model_f_extractor(w_in, self.eval_mask)
+                w_in = w_in.reshape(BATCH_SIZE, WINDOW_PAST, -1)
+                w_in = torch.from_numpy(w_in).float().to(DEVICE)
 
-            # Forward pass through the sensor head
-            y = self.model_sensor(x)
+                # Output
+                w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
+                w_out = torch.from_numpy(w_out).float().to(DEVICE)
 
-            # Compute loss
-            loss = torch.mean(criterion(y, w_out), dim=2)
+                # Forward pass through the feature extractor
+                x = self.model_f_extractor(w_in, self.eval_mask)
 
-            all_predicted[train_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE, 0]] =  loss.detach().cpu().numpy()[:, 0]
+                # Forward pass through the sensor head
+                y = self.model_sensor(x)
 
-            self.log(" " * 100, end="\r", verbose=verbose)
-            self.log(f"Calculating errors {step + 1} / {steps}", end="\r", verbose=verbose)
+                # Compute loss
+                loss = torch.mean(criterion(y, w_out), dim=2)
+
+                all_predicted[train_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE, 0]] =  loss.detach().cpu().numpy()[:, 0]
+
+                self.log(" " * 100, end="\r", verbose=verbose)
+                self.log(f"Calculating errors {step + 1} / {steps}", end="\r", verbose=verbose)
+            
+            return all_predicted
+
+        all_predicted_val = calculate_errors(df=self.df_val, input_indices=self.val_input_indices, output_indices=self.val_output_indices)
+        all_predicted_test = calculate_errors(df=self.df_test, input_indices=self.test_input_indices, output_indices=self.test_output_indices)
+        all_predicted = np.concatenate((all_predicted_val, all_predicted_test))
 
         # Craft input and output for the threshold model
         all_predicted = np.trim_zeros(all_predicted) if not np.all(all_predicted == 0) else all_predicted
@@ -460,6 +468,79 @@ class Client:
         self.log(f"Training loss: {min_train_loss}", verbose=verbose)
 
         return -min_train_loss
+
+    def calculate_threshold_base(self):
+
+        criterion = nn.MSELoss(reduction="none")
+
+        losses = []
+
+        with torch.no_grad():
+
+            steps = len(self.val_input_indices) // BATCH_SIZE
+
+            for step in range(0, steps):
+
+                df_in = self.df_val[self.val_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()]
+                df_out = self.df_val[self.val_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
+
+                # Input
+                w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+                w_in[:, self.input_mask] = df_in
+
+                w_in = w_in.reshape(BATCH_SIZE, WINDOW_PAST, -1)
+                w_in = torch.from_numpy(w_in).float().to(DEVICE)
+
+                # Output
+                w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
+                w_out = torch.from_numpy(w_out).float().to(DEVICE)
+
+                # Forward pass through the feature extractor
+                x = self.model_f_extractor(w_in, self.val_mask)
+
+                # Forward pass through the sensor head
+                y = self.model_sensor(x)
+
+                # Compute loss
+                loss = torch.mean(criterion(y, w_out), dim=2)
+
+                losses.extend(scipy.signal.medfilt(loss.detach().cpu().numpy()[:, 0].flatten(), kernel_size=MED_FILTER_LAG))
+            
+            steps = len(self.test_input_indices) // BATCH_SIZE
+
+            for step in range(0, steps):
+
+                df_in = self.df_test[self.test_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()]
+                df_out = self.df_test[self.test_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
+
+                # Input
+                w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+                w_in[:, self.input_mask] = df_in
+
+                w_in = w_in.reshape(BATCH_SIZE, WINDOW_PAST, -1)
+                w_in = torch.from_numpy(w_in).float().to(DEVICE)
+
+                # Output
+                w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
+                w_out = torch.from_numpy(w_out).float().to(DEVICE)
+
+                # Forward pass through the feature extractor
+                x = self.model_f_extractor(w_in, self.eval_mask)
+
+                # Forward pass through the sensor head
+                y = self.model_sensor(x)
+
+                # Compute loss
+                loss = torch.mean(criterion(y, w_out), dim=2)
+
+                losses.extend(scipy.signal.medfilt(loss.detach().cpu().numpy()[:, 0].flatten(), kernel_size=MED_FILTER_LAG))
+
+        err_mean = np.mean(losses)
+        err_std = np.std(losses)
+
+        self.threshold_base = err_mean + err_std
+        
+        return losses
 
     def set_model_f_extractor(self, model_f_extractor: ModelFExtractor | OrderedDict):
         self.model_f_extractor.load_state_dict(model_f_extractor.state_dict() if isinstance(model_f_extractor, ModelFExtractor) else model_f_extractor)
