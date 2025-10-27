@@ -37,7 +37,7 @@ STAGES: list[list[str]] = [
     ["AIT501", "AIT502", "AIT503", "AIT504", "FIT501", "FIT502", "FIT503", "FIT504", "PIT501", "PIT502", "PIT503", "P501", "P502"],
 
     # Stage 6: Backwash
-    # ["FIT601", "P601", "P602", "P603"]
+    ["FIT601", "P601", "P602", "P603"]
 ]
 
 ATTACKS: list[list[str]] = [

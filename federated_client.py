@@ -582,6 +582,12 @@ def generate_non_iid_clients(model_f_extractor: ModelFExtractor = None, model_se
         normal_data = normal[key]
         attack_data = attack[key]
 
+        inputs = normal_data.attrs["inputs"][:]
+        outputs = normal_data.attrs["outputs"][:]
+
+        if not len(outputs):
+            continue
+
         df_train = normal_data["df_normal_train"][:]
         df_val = normal_data["df_normal_val"][:]
         df_test = normal_data["df_normal_test"][:]
@@ -627,8 +633,8 @@ def generate_non_iid_clients(model_f_extractor: ModelFExtractor = None, model_se
             real_input_indices=real_input_indices,
             real_output_indices=real_output_indices,
 
-            inputs=normal_data.attrs["inputs"][:],
-            outputs=normal_data.attrs["outputs"][:],
+            inputs=inputs,
+            outputs=outputs,
 
             model_f_extractor=model_f_extractor,
             model_sensor=model_sensor
