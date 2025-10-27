@@ -114,6 +114,10 @@ class Client:
         self.eval_mask[:, :, self.input_mask] = 1
         self.eval_mask = self.eval_mask.to(DEVICE)
 
+        self.real_mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
+        self.real_mask[:, :, self.input_mask] = 1
+        self.real_mask = self.real_mask.to(DEVICE)
+
         self.log = lambda msg, end="\n", verbose=False: print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
 
     def __str__(self) -> str:

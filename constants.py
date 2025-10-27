@@ -8,10 +8,16 @@ GLOBAL_INPUTS: list[str] = [
     "P501", "P502", "PIT501", "PIT502", "PIT503", "FIT601", "P601", "P602", "P603"
 ]
 
+# GLOBAL_OUTPUTS: list[str] = [
+#     "MV101", "P101", "P102", "AIT202", "DPIT301", "LIT101", "MV201", "P201", "P203", "P205", "LIT301",
+#     "MV302", "MV303", "MV304", "AIT402", "FIT401", "LIT401", "P401", "UV401", "AIT502", "AIT504",
+#     "P501", "FIT502", "P302", "P602"
+# ]
+
 GLOBAL_OUTPUTS: list[str] = [
-    "MV101", "P101", "P102", "AIT202", "DPIT301", "LIT101", "MV201", "P201", "P203", "P205", "LIT301",
-    "MV302", "MV303", "MV304", "AIT402", "FIT401", "LIT401", "P401", "UV401", "AIT502", "AIT504",
-    "P501", "FIT502", "P302", "P602"
+    "AIT202", "DPIT301", "LIT101", "LIT301", 
+    "AIT402", "FIT401", "LIT401", "AIT502", 
+    "AIT504", "FIT502"
 ]
 
 STAGES: list[list[str]] = [
@@ -31,7 +37,7 @@ STAGES: list[list[str]] = [
     ["AIT501", "AIT502", "AIT503", "AIT504", "FIT501", "FIT502", "FIT503", "FIT504", "PIT501", "PIT502", "PIT503", "P501", "P502"],
 
     # Stage 6: Backwash
-    ["FIT601", "P601", "P602", "P603"]
+    # ["FIT601", "P601", "P602", "P603"]
 ]
 
 ATTACKS: list[list[str]] = [
