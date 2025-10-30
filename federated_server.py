@@ -103,7 +103,7 @@ class Server:
         checkpoint_path = join(session_path, CHECKPOINTS)
         makedirs(name=checkpoint_path)
 
-        run = WandbConfig.init_run(name=f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network", tags=["pytorch", "wide-deep", "sensors"])
+        run = WandbConfig.init_run(name=f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network", tags=["pytorch", "wide-deep", "all_sensors"])
 
         map_clients_ids = {str(client): f"{'-'.join(sorted(client.inputs))}" for client in self.clients}
 
@@ -138,6 +138,7 @@ class Server:
                 stats[client_id]["selected"] = 0
 
             #? Select clients
+            start = time()
             selected_clients = self.select_clients()
             elapsed = max(0, time() - start)
 
