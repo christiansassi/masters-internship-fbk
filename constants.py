@@ -1,5 +1,6 @@
 from os.path import join
 
+# SWaT features (sensors + actuators)
 GLOBAL_INPUTS: list[str] = [
     "FIT101", "LIT101", "MV101", "P101", "P102", "AIT201", "AIT202", "AIT203", "FIT201", "MV201",
     "P201", "P202", "P203", "P204", "P205", "P206", "DPIT301", "FIT301", "LIT301", "MV301", "MV302", 
@@ -8,18 +9,16 @@ GLOBAL_INPUTS: list[str] = [
     "P501", "P502", "PIT501", "PIT502", "PIT503", "FIT601", "P601", "P602", "P603"
 ]
 
-# GLOBAL_OUTPUTS: list[str] = [
-#     "MV101", "P101", "P102", "AIT202", "DPIT301", "LIT101", "MV201", "P201", "P203", "P205", "LIT301",
-#     "MV302", "MV303", "MV304", "AIT402", "FIT401", "LIT401", "P401", "UV401", "AIT502", "AIT504",
-#     "P501", "FIT502", "P302", "P602"
-# ]
-
+# SWaT sensors
 GLOBAL_OUTPUTS: list[str] = [
-    "AIT202", "DPIT301", "LIT101", "LIT301", 
-    "AIT402", "FIT401", "LIT401", "AIT502", 
-    "AIT504", "FIT502"
+    "FIT101", "LIT101", "AIT201", "AIT202", "AIT203", "FIT201",
+    "DPIT301", "FIT301", "LIT301", "AIT401", "AIT402", "FIT401",
+    "LIT401", "AIT501", "AIT502", "AIT503", "AIT504", "FIT501", 
+    "FIT502", "FIT503", "FIT504", "PIT501", "PIT502", "PIT503",
+    "FIT601"
 ]
 
+# SWaT stages
 STAGES: list[list[str]] = [
     # Stage 1: Raw Water Supply
     ["FIT101", "LIT101", "MV101", "P101", "P102"],
@@ -40,6 +39,7 @@ STAGES: list[list[str]] = [
     ["FIT601", "P601", "P602", "P603"]
 ]
 
+# Features involved in each attack
 ATTACKS: list[list[str]] = [
     ["MV101"],
     ["P102"],
@@ -138,7 +138,6 @@ CHECKPOINTS: str = "checkpoints"
 
 WIDE_DEEP_NETWORK_BASENAME: str = "wide_deep_network"
 WIDE_DEEP_NETWORK: str = join(MODELS, WIDE_DEEP_NETWORK_BASENAME)
-WIDE_DEEP_NETWORK_CHECKPOINT: str = join(WIDE_DEEP_NETWORK, CHECKPOINTS)
 
 THRESHOLD_NETWORK_BASENAME: str = "threshold_network"
 THRESHOLD_NETWORK: str = join(MODELS, THRESHOLD_NETWORK_BASENAME)

@@ -92,13 +92,16 @@ class Server:
         return global_model
     
     def federated_learning(self):
-
-        makedirs(name=WIDE_DEEP_NETWORK_CHECKPOINT, exist_ok=True)
-
-        session_id = str(int(datetime.now().timestamp()))
         
-        model_path = join(WIDE_DEEP_NETWORK_CHECKPOINT, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.pt")
-        model_dict = {}
+        makedirs(name=WIDE_DEEP_NETWORK, exist_ok=True)
+
+        session_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+        session_path = join(WIDE_DEEP_NETWORK, session_id)
+        makedirs(name=session_path, exist_ok=True)
+
+        checkpoint_path = join(session_path, CHECKPOINTS)
+        makedirs(name=checkpoint_path)
 
         run = WandbConfig.init_run(name=f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network", tags=["pytorch", "wide-deep", "sensors"])
 
@@ -122,21 +125,25 @@ class Server:
 
         while True:
 
-            start = time()
-
             round_num = round_num + 1
+
+            round_path = join(checkpoint_path, f"round_{round_num}")
+            makedirs(name=round_path, exist_ok=True)
 
             print("")
             logging.info(f"---------- Round {round_num} ----------")
-
+            
             for client in self.clients:
                 client_id = map_clients_ids[str(client)]
                 stats[client_id]["selected"] = 0
 
-            # Select clients
+            #? Select clients
             selected_clients = self.select_clients()
+            elapsed = max(0, time() - start)
 
-            # Update eclients
+            #? Update eclients
+            start = time()
+
             for index, client in enumerate(selected_clients, start=1):
                 print(f"{utils.log_timestamp_status()} Training {index} / {len(selected_clients)}")
                 train_loss, val_loss = client.train_model_f_extractor_and_sensor(model_f_extractor=self.model_f_extractor, verbose=VERBOSE)
@@ -147,13 +154,27 @@ class Server:
                 stats[client_id]["val_loss"] = val_loss
                 stats[client_id]["selected"] = 1
 
+            elapsed = elapsed + max(0, time() - start)
+
+            #! CHECKPOINT #######
+            for client in self.clients:
+                torch.save({
+                    "model_f_extractor": client.model_f_extractor.state_dict(),
+                    "model_sensor": client.model_sensor.state_dict()
+                }, join(round_path, f"{str(client.id)}.pt"))
+            #!###################
+
             logging.info(f"Trained {len(selected_clients)} clients")
 
-            # Model aggregations
+            #? Model aggregations
             logging.info(f"Aggregating models")
+            start = time()
             self.model_f_extractor = self.aggregate_networks(clients=self.clients)
+            elapsed = elapsed + max(0, time() - start)
 
-            # Evaluate clients
+            #? Evaluate clients
+            start = time()
+
             self.score = 0
 
             for index, client in enumerate(self.clients, start=1):
@@ -172,9 +193,11 @@ class Server:
 
             self.score = self.score / len(self.clients)
 
+            elapsed = elapsed + max(0, time() - start)
+
             logging.info(f"Evaluated {len(self.clients)} clients")
 
-            # Check for improvements
+            #? Check for improvements
             logging.info(f"Current score: {self.score}")
             logging.info(f"Best score: {best_score}")
 
@@ -184,18 +207,18 @@ class Server:
                 best_score = self.score
                 best_model_f_extractor = deepcopy(self.model_f_extractor)
 
-                model_dict = {
-                    "model_f_extractor": best_model_f_extractor.state_dict(),
-                    "model_sensors": {
-                        str(client): client.model_sensor.state_dict()
-                    for client in self.clients}
-                }
-
-                torch.save(model_dict, model_path)
-
             else:
                 stop_counter = stop_counter + 1
             
+            #! CHECKPOINT #######
+            torch.save({
+                "model_f_extractor": best_model_f_extractor.state_dict(),
+                "model_sensors": {
+                    str(client): client.model_sensor.state_dict()
+                for client in self.clients}
+            }, join(round_path, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"))
+            #!###################
+
             logging.info(f"Patience {stop_counter} / {FLAD_PATIENCE}")
 
             log = {
@@ -204,14 +227,14 @@ class Server:
                 "score": self.score,
                 "best": best_score,
                 "stop_counter": stop_counter,
-                "time_per_round": time() - start,
+                "time_per_round": elapsed,
             }
 
             log.update(stats)
 
             run.log(log)
 
-            # Check stop conditions
+            #? Check stop conditions
             if stop_counter >= FLAD_PATIENCE:
                 break
         
@@ -220,16 +243,11 @@ class Server:
         for client in self.clients:
             client.set_model_f_extractor(model_f_extractor=self.model_f_extractor)
 
-        makedirs(name=WIDE_DEEP_NETWORK, exist_ok=True)
-
-        model_path = join(WIDE_DEEP_NETWORK, f"{WIDE_DEEP_NETWORK_BASENAME}-{session_id}.pt")
-        model_dict = {
+        torch.save({
             "model_f_extractor": best_model_f_extractor.state_dict(),
             "model_sensors": {
                 str(client): client.model_sensor.state_dict()
             for client in self.clients}
-        }
-
-        torch.save(model_dict, model_path)
+        }, join(session_path, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"))
 
         run.finish()

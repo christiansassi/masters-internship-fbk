@@ -13,12 +13,6 @@
 **/old_versions
 **/wandb
 
-!models/threshold_networks/
-!models/wide_deep_networks/
-
-!models/threshold_networks/*
-!models/wide_deep_networks/*
-
 # Extensions
 **.env
 

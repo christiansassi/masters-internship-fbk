@@ -77,7 +77,10 @@ def split_clients(df: pd.DataFrame) -> list[pd.DataFrame]:
 
         for attack_index, attack_labels in enumerate(ATTACKS):
 
-            if not set(attack_labels) & set(client.columns):
+            # if not set(attack_labels) & set(client.columns):
+            #     continue
+            
+            if not (set(attack_labels) & set(client.columns)) & set(GLOBAL_OUTPUTS):
                 continue
 
             client.loc[attack_chunks[attack_index], "Normal/Attack"] = 1
