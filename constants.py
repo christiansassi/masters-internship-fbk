@@ -39,6 +39,19 @@ STAGES: list[list[str]] = [
     ["FIT601", "P601", "P602", "P603"]
 ]
 
+from itertools import chain, combinations
+
+_stages: list[list[str]] = []
+
+for r in range(1, len(STAGES) + 1):
+    for combo in combinations(STAGES, r):
+        flat = list(chain.from_iterable(combo))
+        flat = sorted(flat, key=lambda x: GLOBAL_INPUTS.index(x))
+
+        _stages.append(flat)
+
+STAGES = _stages
+
 # Features involved in each attack
 ATTACKS: list[list[str]] = [
     ["MV101"],

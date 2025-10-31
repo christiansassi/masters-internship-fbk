@@ -792,6 +792,66 @@ class Client:
         self.log(msg=f"False negative rate: {fn / (tp + fn)}", verbose=verbose)
         self.log(msg=f"F1 oneclass score: {f1_score(all_labels_threshold, all_threshold)}", verbose=verbose)
 
+    def debug(self, verbose: bool = False):
+        
+        self.model_f_extractor.to(DEVICE)
+        self.model_sensor.to(DEVICE)
+
+        self.model_f_extractor.eval()
+        self.model_sensor.eval()
+
+        criterion = nn.MSELoss(reduction="none")
+
+        all_predicted_sen = np.zeros(len(self.df_real), dtype=float)
+
+        steps = len(self.real_input_indices) // BATCH_SIZE
+
+        for step in range(0, steps):
+
+            apply_start = self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE][0, 0]
+            apply_end = self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE][-1, 0]
+
+            df_in = self.df_real[self.real_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()]
+            df_out = self.df_real[self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
+
+            #? Wide Deep
+
+            # Input
+            w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+            w_in[:, self.input_mask] = df_in
+
+            w_in = w_in.reshape(BATCH_SIZE, WINDOW_PAST, -1)
+            w_in = torch.from_numpy(w_in).float().to(DEVICE)
+            
+            # Output
+            w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
+            w_out = torch.from_numpy(w_out).float().to(DEVICE)
+
+            # Predict future sensors values
+            x = self.model_f_extractor(w_in, self.real_mask)
+            y = self.model_sensor(x)
+
+            # Calculate error
+            loss = torch.mean(criterion(y, w_out), dim=2)
+            
+            # Store the prediction error for further processing
+            all_predicted_sen[self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE, 0]] = loss.detach().cpu().numpy()[:, 0]
+
+            self.log(msg=f"Step {step} / {steps}", end="\r", verbose=verbose)
+
+        all_predicted_sen = all_predicted_sen[self.real_output_indices[0][0]:]
+        all_labels = self.all_labels[self.real_output_indices[0][0]:]
+
+        colors = np.where(all_labels == 0, "green", "red")
+
+        import matplotlib.pyplot as plt
+
+        plt.scatter(np.arange(len(all_predicted_sen)), all_predicted_sen, c=colors)
+        plt.title("Predicted Sensor Values by Label")
+        plt.xlabel("Index")
+        plt.ylabel("Prediction")
+        plt.show()
+
     def set_model_f_extractor(self, model_f_extractor: ModelFExtractor | OrderedDict):
         self.model_f_extractor.load_state_dict(model_f_extractor.state_dict() if isinstance(model_f_extractor, ModelFExtractor) else model_f_extractor)
 
