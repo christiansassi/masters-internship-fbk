@@ -4,7 +4,6 @@
 
 # Directories
 **/cache
-**/checkpoints
 **/clients
 **/datasets
 **/keys
@@ -12,6 +11,8 @@
 **/not_ready
 **/old_versions
 **/wandb
+
+./checkpoints
 
 # Extensions
 **.env
