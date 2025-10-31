@@ -272,7 +272,7 @@ class Client:
                     for model_sensor, output_mask in zip(self.model_sensors, self.output_mask):
 
                         # Output
-                        df_out = self.df_val[self.val_output_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
+                        df_out = self.df_val[self.val_output_indices[batch_index * BATCH_SIZE: batch_index * BATCH_SIZE + BATCH_SIZE].flatten()][:, output_mask]
 
                         w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
                         w_out = torch.from_numpy(w_out).float().to(DEVICE)

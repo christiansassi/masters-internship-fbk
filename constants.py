@@ -43,7 +43,7 @@ from itertools import chain, combinations
 
 STAGES: list[list[str]] = []
 
-for r in range(1, len(DEFAULT_STAGES) + 1):
+for r in range(4, len(DEFAULT_STAGES) + 1):
     for combo in combinations(DEFAULT_STAGES, r):
         flat = list(chain.from_iterable(combo))
         flat = sorted(flat, key=lambda x: GLOBAL_INPUTS.index(x))
