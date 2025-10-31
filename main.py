@@ -16,7 +16,7 @@ if __name__ == "__main__":
     utils.clear_console()
 
     # Instantiate clients
-    clients = generate_non_iid_clients()
+    clients = generate_non_iid_clients(verbose=True)
 
     # Instantiate server
     server = Server(clients=clients)

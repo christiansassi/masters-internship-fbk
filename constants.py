@@ -19,7 +19,7 @@ GLOBAL_OUTPUTS: list[str] = [
 ]
 
 # SWaT stages
-STAGES: list[list[str]] = [
+DEFAULT_STAGES: list[list[str]] = [
     # Stage 1: Raw Water Supply
     ["FIT101", "LIT101", "MV101", "P101", "P102"],
 
@@ -41,16 +41,14 @@ STAGES: list[list[str]] = [
 
 from itertools import chain, combinations
 
-_stages: list[list[str]] = []
+STAGES: list[list[str]] = []
 
-for r in range(1, len(STAGES) + 1):
-    for combo in combinations(STAGES, r):
+for r in range(1, len(DEFAULT_STAGES) + 1):
+    for combo in combinations(DEFAULT_STAGES, r):
         flat = list(chain.from_iterable(combo))
         flat = sorted(flat, key=lambda x: GLOBAL_INPUTS.index(x))
 
-        _stages.append(flat)
-
-STAGES = _stages
+        STAGES.append(flat)
 
 # Features involved in each attack
 ATTACKS: list[list[str]] = [
