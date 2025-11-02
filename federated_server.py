@@ -68,7 +68,7 @@ class Server:
         global_model = deepcopy(self.model_f_extractor)
         global_model.to(DEVICE)
 
-        global_state = global_model.state_dict()
+        global_state = deepcopy(global_model.state_dict())
 
         # Prepare accumulators
         for key in global_state.keys():
@@ -80,14 +80,14 @@ class Server:
         # Aggregate parameters
         for client in clients:
 
-            client_state = client.model_f_extractor.state_dict()
+            client_state = deepcopy(client.model_f_extractor.state_dict())
             weight = client.num_of_samples if weighted else 1
 
             for key in global_state.keys():
                 global_state[key] += (client_state[key] * (weight / total_weight))
 
         # Load averaged weights into global model
-        global_model.load_state_dict(global_state)
+        global_model.load_state_dict(deepcopy(global_state))
 
         return global_model
     
@@ -160,8 +160,8 @@ class Server:
             #! CHECKPOINT #######
             for client in self.clients:
                 torch.save({
-                    "model_f_extractor": client.model_f_extractor.state_dict(),
-                    "model_sensor": client.model_sensor.state_dict()
+                    "model_f_extractor": deepcopy(client.model_f_extractor.state_dict()),
+                    "model_sensor": deepcopy(client.model_sensor.state_dict())
                 }, join(round_path, f"{str(client.id)}.pt"))
             #!###################
 
@@ -213,9 +213,9 @@ class Server:
             
             #! CHECKPOINT #######
             torch.save({
-                "model_f_extractor": best_model_f_extractor.state_dict(),
+                "model_f_extractor": deepcopy(best_model_f_extractor.state_dict()),
                 "model_sensors": {
-                    str(client): client.model_sensor.state_dict()
+                    str(client): deepcopy(client.model_sensor.state_dict())
                 for client in self.clients}
             }, join(round_path, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"))
             #!###################
@@ -245,9 +245,9 @@ class Server:
             client.set_model_f_extractor(model_f_extractor=self.model_f_extractor)
 
         torch.save({
-            "model_f_extractor": best_model_f_extractor.state_dict(),
+            "model_f_extractor": deepcopy(best_model_f_extractor.state_dict()),
             "model_sensors": {
-                str(client): client.model_sensor.state_dict()
+                str(client): deepcopy(client.model_sensor.state_dict())
             for client in self.clients}
         }, join(session_path, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"))
 

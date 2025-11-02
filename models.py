@@ -23,9 +23,7 @@ class ModelFExtractor(nn.Module):
         self.relu = nn.LeakyReLU()
         self.dropout = nn.Dropout(p=0.4)
 
-        # Deep branch
-        self.fc13 = nn.Linear(window_size_in, 
-                              window_size_in * 3 if window_size_in >= n_devices_in else n_devices_in * 3)
+        self.fc13 = nn.Linear(window_size_in, window_size_in * 3 if window_size_in >= n_devices_in else n_devices_in * 3)
         self.conv = nn.Sequential(
             nn.Conv1d(n_devices_in, 64, kernel_size),
             nn.LeakyReLU(True),
@@ -35,17 +33,15 @@ class ModelFExtractor(nn.Module):
             nn.MaxPool1d(2)
         )
         self.conv_out_channels = 128
-        self.maxpool1_out = maxpool1d_output_shape(conv1d_output_shape(
-            window_size_in * 3 if window_size_in >= n_devices_in else n_devices_in * 3, kernel_size=kernel_size), kernel_size=2)
-        self.maxpool2_out = maxpool1d_output_shape(conv1d_output_shape(
-            self.maxpool1_out, kernel_size=kernel_size), kernel_size=2)
+        self.maxpool1_out = maxpool1d_output_shape(conv1d_output_shape(window_size_in * 3 if window_size_in >= n_devices_in else n_devices_in * 3, kernel_size=kernel_size), kernel_size=2)
+        self.maxpool2_out = maxpool1d_output_shape(conv1d_output_shape(self.maxpool1_out, kernel_size=kernel_size), kernel_size=2)
         self.out_2 = nn.Linear(self.conv_out_channels, window_size_out)
 
-        # Wide branch
         self.fc20 = nn.Linear(window_size_in, window_size_out)
 
-        # Aggregation
         self.out_h = nn.Linear(self.maxpool2_out + n_devices_in, 80)
+
+        self.n_devices_in = n_devices_in
 
     def forward_two(self, x):
         x = self.fc13(x)
@@ -63,8 +59,18 @@ class ModelFExtractor(nn.Module):
 
         if mask is not None:
             x_t_1 = x_t_1 * mask
+
             active = mask.sum(dim=2, keepdim=True)
-            x_t_1 = x_t_1 / active.clamp(min=1.0)
+
+            full = self.n_devices_in
+
+            normalize = (active < full)
+
+            x_t_1 = torch.where(
+                normalize,
+                x_t_1 / active.clamp(min=1.0),
+                x_t_1
+            )
 
         x_t_1 = x_t_1.transpose(2, 1)
         y_t2 = self.forward_two(x_t_1)

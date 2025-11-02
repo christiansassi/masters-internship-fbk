@@ -1,4 +1,5 @@
 from constants import *
+import config
 
 from os import makedirs
 
@@ -37,26 +38,32 @@ def clean_dataset(src: str) -> pd.DataFrame:
 
 def normalize_datasets(*datasets: tuple[pd.DataFrame]) -> tuple[pd.DataFrame]:
 
-    # Vertically stack all the data
-    full_data = np.vstack([dataset[GLOBAL_INPUTS].values for dataset in datasets])
+    # Stack data across all datasets to compute global min/max
+    full_data = np.vstack([dataset[GLOBAL_INPUTS].to_numpy() for dataset in datasets])
 
-    # Get min and max value
-    min_v = np.minimum(full_data.min(axis=0), 0)
-    max_v = np.maximum(full_data.max(axis=0), 1)
+    # Compute min/max
+    min_v = full_data.min(axis=0)
+    max_v = full_data.max(axis=0)
 
-    # Normalize each dataset
-    normalize = lambda x: np.clip((x - min_v) / (max_v - min_v), 0, 1)
+    # Match SWaT handling:
+    # if min == max, force min = 0
+    # if max == 0, force max = 1
+    min_v = np.where(min_v == max_v, np.zeros_like(min_v), min_v)
+    max_v = np.where(max_v == 0., np.ones_like(max_v), max_v)
 
-    return (
-        pd.DataFrame(
-            data=np.hstack([
-                normalize(dataset[GLOBAL_INPUTS].values),
-                dataset[["Normal/Attack"]].values
-            ]),
+    # Lambda normalization (same as SWaT script)
+    normalize = lambda arr: np.clip((arr - min_v) / (max_v - min_v), 0, 1)
+
+    results = []
+    for dataset in datasets:
+        scaled = normalize(dataset[GLOBAL_INPUTS].to_numpy())
+        out = pd.DataFrame(
+            data=np.hstack([scaled, dataset[["Normal/Attack"]].to_numpy()]),
             columns=GLOBAL_INPUTS + ["Normal/Attack"]
         )
-        for dataset in datasets
-    )
+        results.append(out)
+
+    return tuple(results)
 
 def split_clients(df: pd.DataFrame) -> list[pd.DataFrame]:
 
@@ -181,7 +188,7 @@ if __name__ == "__main__":
 
         group = group_normal.create_group(f"client-{index}")
         group.attrs["columns"] = list(client.columns)
-        group.attrs["inputs"] = list(set(client.columns) - set(["Normal/Attack"]))
+        group.attrs["inputs"] = [column for column in list(client.columns) if column != "Normal/Attack"]
         group.attrs["outputs"] = [column for column in list(client.columns) if column in GLOBAL_OUTPUTS]
 
         group.create_dataset("df_normal_train", data=df_normal_train.values)
@@ -206,7 +213,7 @@ if __name__ == "__main__":
 
         group = group_attack.create_group(f"client-{index}")
         group.attrs["columns"] = list(client.columns)
-        group.attrs["inputs"] = list(set(client.columns) - set(["Normal/Attack"]))
+        group.attrs["inputs"] = [column for column in list(client.columns) if column != "Normal/Attack"]
         group.attrs["outputs"] = [column for column in list(client.columns) if column in GLOBAL_OUTPUTS]
 
         group.create_dataset("df_attack", data=client.values)
@@ -217,52 +224,52 @@ if __name__ == "__main__":
     hf.close()
 
     # DAICS
-    hf = h5py.File(name=OUTPUT_FILE_DAICS, mode="w")
-    group_normal = hf.create_group(f"normal")
-    group_attack = hf.create_group(f"attack")
+    # hf = h5py.File(name=OUTPUT_FILE_DAICS, mode="w")
+    # group_normal = hf.create_group(f"normal")
+    # group_attack = hf.create_group(f"attack")
 
-    df_normal_train, df_normal_val, df_normal_test = split_train_val_test(df=df_normal)
+    # df_normal_train, df_normal_val, df_normal_test = split_train_val_test(df=df_normal)
 
-    (
-        df_normal_train_input_indices, 
-        df_normal_train_output_indices, 
+    # (
+    #     df_normal_train_input_indices, 
+    #     df_normal_train_output_indices, 
         
-        df_normal_val_input_indices, 
-        df_normal_val_output_indices, 
+    #     df_normal_val_input_indices, 
+    #     df_normal_val_output_indices, 
         
-        df_normal_test_input_indices, 
-        df_normal_test_output_indices
-    ) = prepare_sliding_windows(df_train=df_normal_train, df_val=df_normal_val, df_test=df_normal_test)
+    #     df_normal_test_input_indices, 
+    #     df_normal_test_output_indices
+    # ) = prepare_sliding_windows(df_train=df_normal_train, df_val=df_normal_val, df_test=df_normal_test)
 
-    group_normal.attrs["columns"] = list(df_normal.columns)
-    group_normal.attrs["inputs"] = list(set(df_normal.columns) - set(["Normal/Attack"]))
-    group_normal.attrs["outputs"] = [column for column in list(df_normal.columns) if column in GLOBAL_OUTPUTS]
+    # group_normal.attrs["columns"] = list(df_normal.columns)
+    # group_normal.attrs["inputs"] = list(set(df_normal.columns) - set(["Normal/Attack"]))
+    # group_normal.attrs["outputs"] = [column for column in list(df_normal.columns) if column in GLOBAL_OUTPUTS]
 
-    group_normal.create_dataset("df_normal_train", data=df_normal_train.values)
-    group_normal.create_dataset("df_normal_val", data=df_normal_val.values)
-    group_normal.create_dataset("df_normal_test", data=df_normal_test.values)
+    # group_normal.create_dataset("df_normal_train", data=df_normal_train.values)
+    # group_normal.create_dataset("df_normal_val", data=df_normal_val.values)
+    # group_normal.create_dataset("df_normal_test", data=df_normal_test.values)
 
-    group_normal.create_dataset("df_normal_train_input_indices", data=df_normal_train_input_indices)
-    group_normal.create_dataset("df_normal_train_output_indices", data=df_normal_train_output_indices)
+    # group_normal.create_dataset("df_normal_train_input_indices", data=df_normal_train_input_indices)
+    # group_normal.create_dataset("df_normal_train_output_indices", data=df_normal_train_output_indices)
 
-    group_normal.create_dataset("df_normal_val_input_indices", data=df_normal_val_input_indices)
-    group_normal.create_dataset("df_normal_val_output_indices", data=df_normal_val_output_indices)
+    # group_normal.create_dataset("df_normal_val_input_indices", data=df_normal_val_input_indices)
+    # group_normal.create_dataset("df_normal_val_output_indices", data=df_normal_val_output_indices)
 
-    group_normal.create_dataset("df_normal_test_input_indices", data=df_normal_test_input_indices)
-    group_normal.create_dataset("df_normal_test_output_indices", data=df_normal_test_output_indices)
+    # group_normal.create_dataset("df_normal_test_input_indices", data=df_normal_test_input_indices)
+    # group_normal.create_dataset("df_normal_test_output_indices", data=df_normal_test_output_indices)
 
-    (
-        df_attack_input_indices,
-        df_attack_output_indices
-    ) = prepare_sliding_windows(df_test=df_attack)
+    # (
+    #     df_attack_input_indices,
+    #     df_attack_output_indices
+    # ) = prepare_sliding_windows(df_test=df_attack)
 
-    group_attack.attrs["columns"] = list(df_attack.columns)
-    group_attack.attrs["inputs"] = list(set(df_attack.columns) - set(["Normal/Attack"]))
-    group_attack.attrs["outputs"] = [column for column in list(df_attack.columns) if column in GLOBAL_OUTPUTS]
+    # group_attack.attrs["columns"] = list(df_attack.columns)
+    # group_attack.attrs["inputs"] = list(set(df_attack.columns) - set(["Normal/Attack"]))
+    # group_attack.attrs["outputs"] = [column for column in list(df_attack.columns) if column in GLOBAL_OUTPUTS]
 
-    group_attack.create_dataset("df_attack", data=df_attack.values)
+    # group_attack.create_dataset("df_attack", data=df_attack.values)
 
-    group_attack.create_dataset("df_attack_input_indices", data=df_attack_input_indices)
-    group_attack.create_dataset("df_attack_output_indices", data=df_attack_output_indices)
+    # group_attack.create_dataset("df_attack_input_indices", data=df_attack_input_indices)
+    # group_attack.create_dataset("df_attack_output_indices", data=df_attack_output_indices)
 
-    hf.close()
+    # hf.close()

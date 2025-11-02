@@ -122,3 +122,20 @@ BENCHMARKS = {
 }
 
 WIDE_DEEP_MAX_BATCH_SIZE = BENCHMARKS.get(hardware, float("inf"))
+
+import random
+import numpy as np
+
+# Fix seeds
+# source: https://github.com/pytorch/pytorch/issues/7068
+def seed_torch(seed=1000):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
+seed_torch()
