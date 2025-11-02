@@ -161,7 +161,7 @@ class Server:
             for client in self.clients:
                 torch.save({
                     "model_f_extractor": deepcopy(client.model_f_extractor.state_dict()),
-                    "model_sensor": deepcopy(client.model_sensor.state_dict())
+                    "model_sensor": [deepcopy(model_sensor.state_dict()) for model_sensor in client.model_sensors]
                 }, join(round_path, f"{str(client.id)}.pt"))
             #!###################
 
@@ -215,7 +215,7 @@ class Server:
             torch.save({
                 "model_f_extractor": deepcopy(best_model_f_extractor.state_dict()),
                 "model_sensors": {
-                    str(client): deepcopy(client.model_sensor.state_dict())
+                    str(client): [deepcopy(model_sensor.state_dict()) for model_sensor in client.model_sensors]
                 for client in self.clients}
             }, join(round_path, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"))
             #!###################
@@ -247,7 +247,7 @@ class Server:
         torch.save({
             "model_f_extractor": deepcopy(best_model_f_extractor.state_dict()),
             "model_sensors": {
-                str(client): deepcopy(client.model_sensor.state_dict())
+                str(client): [deepcopy(model_sensor.state_dict()) for model_sensor in client.model_sensors]
             for client in self.clients}
         }, join(session_path, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"))
 
