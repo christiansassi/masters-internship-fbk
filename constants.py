@@ -43,7 +43,7 @@ from itertools import chain, combinations
 
 STAGES: list[list[str]] = []
 
-for r in range(len(DEFAULT_STAGES), len(DEFAULT_STAGES) + 1):
+for r in range(5, len(DEFAULT_STAGES) + 1):
     for combo in combinations(DEFAULT_STAGES, r):
         flat = list(chain.from_iterable(combo))
         flat = sorted(flat, key=lambda x: GLOBAL_INPUTS.index(x))
@@ -111,7 +111,7 @@ WIDE_DEEP_EPOCHS: int = 50
 THRESHOLD_EPOCHS = 5
 T_EPOCHS: int = 10
 
-KERNEL_SIZE = 1
+KERNEL_SIZE = 2
 LEARNING_RATE: float = 0.01
 MOMENTUM: float = 0.9
 DAICS_PATIENCE: int = 40
