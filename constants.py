@@ -50,6 +50,13 @@ for r in range(len(DEFAULT_STAGES), len(DEFAULT_STAGES) + 1):
 
         STAGES.append(flat)
 
+ACTUATORS: list[str] = [
+    "MV101", "P101", "P102", "MV201", "P201", "P202", "P203", "P204",
+    "P205", "P206", "MV301", "MV302", "MV303", "MV304", "P301", "P302",
+    "P401", "P402", "P403", "P404", "UV401", "P501", "P502", "P601",
+    "P602", "P603"
+]
+
 # Features involved in each attack
 ATTACKS: list[list[str]] = [
     ["MV101"],

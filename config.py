@@ -18,11 +18,11 @@ import uuid
 from types import SimpleNamespace
 
 WIDE_DEEP_NETWORK: bool = False
-THRESHOLD_NETWORK: bool = True
-SIMULATION: bool = False
+THRESHOLD_NETWORK: bool = False
+SIMULATION: bool = True
 
 GPU: bool = True
-WANDB: bool = True
+WANDB: bool = False
 
 VERBOSE: bool = True
 

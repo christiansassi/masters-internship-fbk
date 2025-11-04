@@ -129,17 +129,9 @@ class Client:
         self.input_mask = [list(GLOBAL_INPUTS).index(x) for x in self.inputs]
         self.output_mask = [[list(self.inputs).index(output) for output in outputs] for outputs in active_stages if len(outputs)]
 
-        self.val_mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
-        self.val_mask[:, :, self.input_mask] = 1
-        self.val_mask = self.val_mask.to(DEVICE)
-
-        self.eval_mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
-        self.eval_mask[:, :, self.input_mask] = 1
-        self.eval_mask = self.eval_mask.to(DEVICE)
-
-        self.real_mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
-        self.real_mask[:, :, self.input_mask] = 1
-        self.real_mask = self.real_mask.to(DEVICE)
+        self.mask = torch.zeros(BATCH_SIZE, WINDOW_PAST, len(GLOBAL_INPUTS))
+        self.mask[:, :, self.input_mask] = 1
+        self.mask = self.mask.to(DEVICE)
 
         self.log = lambda msg, end="\n", verbose=False: print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
 
@@ -264,7 +256,7 @@ class Client:
                     w_in = torch.from_numpy(w_in).float().to(DEVICE)
 
                     # Forward pass through the feature extractor
-                    x = self.model_f_extractor(w_in, self.val_mask)
+                    x = self.model_f_extractor(w_in, self.mask)
 
                     # Forward pass through the sensor head
                     loss = 0
@@ -342,7 +334,7 @@ class Client:
                 w_in = torch.from_numpy(w_in).float().to(DEVICE)
 
                 # Forward pass through the feature extractor
-                x = self.model_f_extractor(w_in, self.eval_mask)
+                x = self.model_f_extractor(w_in, self.mask)
 
                 # Forward pass through the sensor head
                 loss = 0
@@ -414,7 +406,7 @@ class Client:
                 w_in = torch.from_numpy(w_in).float().to(DEVICE)
 
                 # Forward pass through the feature extractor
-                x = self.model_f_extractor(w_in, self.eval_mask)
+                x = self.model_f_extractor(w_in, self.mask)
 
                 # Forward pass through the sensor head
                 for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask)):
@@ -523,21 +515,27 @@ class Client:
 
         return losses
 
-    #TODO
-    def calculate_threshold_base(self):
+    def calculate_threshold_base(self, verbose: bool = False):
 
+        self.model_f_extractor.to(DEVICE)
+
+        self.model_f_extractor.eval()
+        
+        for model_sensor in self.model_sensors:
+            model_sensor.to(DEVICE)
+    
         criterion = nn.MSELoss(reduction="none")
 
-        losses = [[] for _ in range(len(self.model_sensors))]
+        def calculate_errors(df, input_indices, output_indices):
 
-        with torch.no_grad():
+            errors = [[] for _ in range(len(self.model_sensors))]
 
-            steps = len(self.val_input_indices) // BATCH_SIZE
+            steps = len(input_indices) // BATCH_SIZE
 
             for step in range(0, steps):
                 
                 # Input
-                df_in = self.df_val[self.val_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()]
+                df_in = df[input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()]
 
                 w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
                 w_in[:, self.input_mask] = df_in
@@ -546,46 +544,14 @@ class Client:
                 w_in = torch.from_numpy(w_in).float().to(DEVICE)
 
                 # Forward pass through the feature extractor
-                x = self.model_f_extractor(w_in, self.val_mask)
+                x = self.model_f_extractor(w_in, self.mask)
 
                 # Forward pass through the sensor head
                 for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask)):
                     
                     # Output
-                    df_out = self.df_val[self.val_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, output_mask]
+                    df_out = df[output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, output_mask]
 
-                    w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
-                    w_out = torch.from_numpy(w_out).float().to(DEVICE)
-
-                    y = model_sensor(x)
-
-                    # Compute loss
-                    loss = torch.mean(self.criterion(y, w_out), dim=2)
-                
-                    losses[index].append(scipy.signal.medfilt(loss.detach().cpu().numpy()[:, 0].flatten(), kernel_size=MED_FILTER_LAG))
-            
-            steps = len(self.test_input_indices) // BATCH_SIZE
-
-            for step in range(0, steps):
-                
-                # Input
-                df_in = self.df_test[self.test_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()]
-
-                w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
-                w_in[:, self.input_mask] = df_in
-
-                w_in = w_in.reshape(BATCH_SIZE, WINDOW_PAST, -1)
-                w_in = torch.from_numpy(w_in).float().to(DEVICE)
-
-                # Forward pass through the feature extractor
-                x = self.model_f_extractor(w_in, self.eval_mask)
-
-                # Forward pass through the sensor head
-                for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask)):
-                    
-                    # Output
-                    df_out = self.df_test[self.test_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, output_mask]
-                    
                     w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
                     w_out = torch.from_numpy(w_out).float().to(DEVICE)
 
@@ -593,281 +559,93 @@ class Client:
 
                     # Compute loss
                     loss = torch.mean(criterion(y, w_out), dim=2)
+                
+                    errors[index].append(scipy.signal.medfilt(loss.detach().cpu().numpy()[:, 0].flatten(), kernel_size=MED_FILTER_LAG))
 
-                    losses[index].append(scipy.signal.medfilt(loss.detach().cpu().numpy()[:, 0].flatten(), kernel_size=MED_FILTER_LAG))
+                self.log(" " * 100, end="\r", verbose=verbose)
+                self.log(f"Calculating errors {step + 1} / {steps}", end="\r", verbose=verbose)
+            
+            return [item for loss in errors for item in loss]
 
-        err_mean = np.mean(losses)
-        err_std = np.std(losses)
+        all_errors = []
+        all_errors.extend(calculate_errors(df=self.df_val, input_indices=self.val_input_indices, output_indices=self.val_output_indices))
+        all_errors.extend(calculate_errors(df=self.df_test, input_indices=self.test_input_indices, output_indices=self.test_output_indices))
 
-        self.threshold_base = err_mean + err_std
+        err_mean = np.mean(all_errors)
+        err_std = np.std(all_errors)
+
+        threshold_base = err_mean + err_std
         
-        return losses
+        self.threshold_base = threshold_base
 
-    #TODO
+        return threshold_base
+
     def test(self, verbose: bool = False):
         
-        self.threshold_base = 0
-        # self.calculate_threshold_base()
+        self.calculate_threshold_base(verbose=verbose)
 
-        self.model_f_extractor.to(DEVICE)
-        self.model_sensor.to(DEVICE)
-        self.pred_error_model.to(DEVICE)
-
-        self.model_f_extractor.eval()
-
-        optimizer = torch.optim.SGD(self.pred_error_model.parameters(), lr=LEARNING_RATE)
-        criterion1 = nn.MSELoss(reduction="none")
-        criterion2 = nn.MSELoss()
-        criterion3 = nn.MSELoss()
-
-        # Results storage
-        all_predicted_sen = np.zeros(len(self.df_real), dtype=float)
-        human_idx_sen = np.zeros(len(self.df_real), dtype=float)
-        all_threshold_sen = np.zeros(len(self.df_real), dtype=float)
-        thresholds_sen = np.zeros(len(self.df_real), dtype=float)
-
-        for name, param in self.model_sensor.named_children():
-            for p in param.parameters():
-                p.requires_grad = True
-
-        # Calculate the impact range. The attack goes from start to end. The impact range from end + (start - end)
-        attack_indices = np.where(self.all_labels == 1)[0]
-        attack_indices = np.split(attack_indices, np.where(np.diff(attack_indices) != 1)[0] + 1)
-        attack_indices = [(sub[0], sub[-1]) for sub in attack_indices]
-
-        attack_impact_array = np.array([], dtype=int)
-    
-        for start, end in attack_indices:
-            attack_impact_array = np.concatenate((attack_impact_array, np.arange(end, end + (end - start))))
-
-        attack_impact_array = np.unique(attack_impact_array)
-
-        all_labels_threshold = np.copy(self.all_labels).astype(int)
-        all_labels_threshold[attack_impact_array] = 1
-
-        human_inter_counter = 0
-
-        steps = len(self.real_input_indices) // BATCH_SIZE
-
-        before = time()
-
-        threshold_points = deque(maxlen=128)
-        error_points = deque(maxlen=128)
-        colors = deque(maxlen=128)
-
-        plt.ion()
-
-        fig, ax = plt.subplots()
-
-        threshold_line, = ax.plot([], [], label="Threshold")
-        error_scatter = ax.scatter([], [], label="Error", s=20)
-
-        for step in range(0, steps):
-
-            apply_start = self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE][0, 0]
-            apply_end = self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE][-1, 0]
-
-            df_in = self.df_real[self.real_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()]
-            df_out = self.df_real[self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, self.output_mask]
-
-            #? Wide Deep
-
-            # Input
-            w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
-            w_in[:, self.input_mask] = df_in
-
-            w_in = w_in.reshape(BATCH_SIZE, WINDOW_PAST, -1)
-            w_in = torch.from_numpy(w_in).float().to(DEVICE)
-            
-            # Output
-            w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
-            w_out = torch.from_numpy(w_out).float().to(DEVICE)
-
-            # Predict future sensors values
-            x = self.model_f_extractor(w_in, self.real_mask)
-            y = self.model_sensor(x)
-
-            # Calculate error
-            loss = torch.mean(criterion1(y, w_out), dim=2)
-            
-            # Store the prediction error for further processing
-            all_predicted_sen[self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE, 0]] = loss.detach().cpu().numpy()[:, 0]
-
-            # Smooth the prediction error using a median filter
-            all_predicted_sen[apply_start - W_ANOMALY * 2: apply_end + 1] = scipy.signal.medfilt(all_predicted_sen[apply_start - W_ANOMALY * 2: apply_end + 1], kernel_size=MED_FILTER_LAG)
-
-            #? Threshold
-
-            # Input
-            threshold_input_indices = (np.arange(apply_start, apply_end + 1) - HORIZON)[:, None] - np.arange(1, WINDOW_PAST + 1)
-
-            w_in = torch.from_numpy(all_predicted_sen[threshold_input_indices][:, :, None]).float().to(DEVICE)
-        
-            # Predict threshold
-            self.pred_error_model.zero_grad()
-
-            threshold = self.pred_error_model(w_in).abs()
-
-            # Calculate loss and do one SGD step
-            loss = criterion2(torch.squeeze(threshold, dim=2), loss)
-            loss.backward(retain_graph=True)
-
-            optimizer.step()
-
-            # Use the maximum predicted threshold for anomaly detection
-            threshold = torch.max(threshold, dim=1)[0].detach().cpu().numpy()
-
-            # If the threshold is zero, repeat the process
-            if np.all(threshold == 0):
-
-                # Predict threshold
-                self.pred_error_model.zero_grad()
-
-                self.pred_error_model.apply(lambda model: model.reset_parameters() if isinstance(model, nn.Conv1d) or isinstance(model, nn.Linear) else None)
-
-                threshold = self.pred_error_model(w_in).abs()
-
-                # Calculate loss and do one SGD step
-                loss = criterion2(torch.squeeze(threshold, dim=2), loss)
-                loss.backward(retain_graph=True)
-
-                optimizer.step()
-
-                # Use the maximum predicted threshold for anomaly detection
-                threshold = torch.max(threshold, dim=1)[0].detach().cpu().numpy()
-
-            # Sum the predicted threshold to the threshold base
-            threshold = threshold + self.threshold_base
-
-            # Store the calculated threshold
-            thresholds_sen[apply_start:apply_end + 1] = np.squeeze(threshold)
-
-            idx_win_thr = np.arange(apply_start, apply_end + 1)[:, None] - np.arange(W_ANOMALY)
-
-            all_threshold_sen[np.arange(apply_start, apply_end + 1)] = np.all(all_predicted_sen[idx_win_thr] > threshold, 1)
-            
-            # DAICS avoids flagging anomalies that last for only a few samples (transient deviations) - Section VII-C
-            # if np.any(all_threshold_sen[np.arange(apply_start, apply_end + 1)] == 1) and np.count_nonzero(all_threshold_sen[np.arange(apply_start, apply_end + 1)]) <= W_GRACE:
-                
-            #     # Prepare the optimizer
-            #     ftune_optimizer = torch.optim.SGD(self.model_sensor.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM, dampening=0.9, weight_decay=0.001)
-            #     ftune_scheduler = ReduceLROnPlateau(ftune_optimizer)
-
-            #     # Fine-tune the output section
-            #     for epoch in range(T_EPOCHS):
-
-            #         self.model_sensor.zero_grad()
-
-            #         f_extracted = self.model_f_extractor(w_in[:-4], self.real_mask[:-4])
-            #         y_t_sen = self.model_sensor(f_extracted)
-
-            #         loss = criterion3(y_t_sen, w_out[:-4])
-            #         loss.backward()
-
-            #         ftune_optimizer.step()
-            #         ftune_scheduler.step(loss)
-                
-            #     all_threshold_sen[np.arange(apply_start, apply_end + 1)] = 0
-            
-            # The condition is met when a false positive occours
-            if np.any(all_threshold_sen[np.arange(apply_start, apply_end + 1)] == 1) and np.all(all_labels_threshold[np.arange(apply_start, apply_end + 1)] == 0):
-
-                # Increment the human intervention counter
-                human_inter_counter = human_inter_counter + 1
-
-                # Flag the indices of human intervention
-                human_idx_sen[np.arange(apply_start, apply_end + 1)] = 1
-
-                # Prepare the optimizer
-                ftune_optimizer = torch.optim.SGD(self.model_sensor.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM, dampening=0.9, weight_decay=0.001)
-                ftune_scheduler = ReduceLROnPlateau(ftune_optimizer)
-
-                # Fine-tune the output section
-                for epoch in range(T_EPOCHS):
-
-                    self.model_sensor.zero_grad()
-
-                    f_extracted = self.model_f_extractor(w_in[:-4], self.real_mask[:-4])
-                    y_t_sen = self.model_sensor(f_extracted)
-
-                    loss = criterion3(y_t_sen, w_out[:-4])
-                    loss.backward()
-
-                    ftune_optimizer.step()
-                    ftune_scheduler.step(loss)
-
-            self.log(msg=f"Step {step} / {steps}", end="\r", verbose=verbose)
-
-            threshold_points.extend(thresholds_sen[apply_start:apply_end + 1])
-            error_points.extend(np.min(all_predicted_sen[idx_win_thr], axis=1))
-
-            x_vals = np.arange(len(threshold_points))
-
-            # Compute colors based on threshold comparison
-            # colors = ["green" if e < t else "red" for e, t in zip(error_points, threshold_points)]
-            colors.extend(["green" if not a else "red" for a in np.max(self.all_labels[idx_win_thr] == 1, axis=1)])
-
-            # Update threshold line
-            threshold_line.set_data(x_vals, threshold_points)
-
-            # Remove old scatter (if any) and redraw new one
-            if "error_scatter" in locals():
-                error_scatter.remove()
-
-            error_scatter = ax.scatter(x_vals, error_points, c=colors, s=25)
-
-            ax.set_xlim(0, 128)
-            ax.set_ylim(np.min([np.min(threshold_points), np.min(error_points)])/2, np.max([np.max(threshold_points), np.max(error_points)])*2)
-
-            plt.pause(0.01)
-
-        plt.ioff()
-        plt.show()
-
-        after = time()
-
-        self.log(msg=f"Time elapsed on the attack dataset: {after - before}", verbose=verbose)
-        self.log(msg=f"Number of human interventions: {human_inter_counter}", verbose=verbose)
-
-        all_threshold = all_threshold_sen[: len(self.all_labels)]
-        all_labels_threshold = np.copy(self.all_labels)[: len(self.all_labels)]
-
-        # Attack impact is part of the attack
-        # Ref: http://dx.doi.org/10.1145/3196494.3196546
-        all_labels_threshold[attack_impact_array] = all_threshold[attack_impact_array]
-
-        tn, fp, fn, tp = confusion_matrix(all_labels_threshold, all_threshold).ravel()
-
-        self.log(msg=f"Accuracy: {accuracy_score(all_labels_threshold, all_threshold)}", verbose=verbose)
-        self.log(msg=f"Precision: {precision_score(all_labels_threshold, all_threshold)}", verbose=verbose)
-        self.log(msg=f"Recall: {recall_score(all_labels_threshold, all_threshold)}", verbose=verbose)
-        self.log(msg=f"False positive rate: {fp / (fp + tn)}", verbose=verbose)
-        self.log(msg=f"False negative rate: {fn / (tp + fn)}", verbose=verbose)
-        self.log(msg=f"F1 oneclass score: {f1_score(all_labels_threshold, all_threshold)}", verbose=verbose)
-
-    #TODO
-    def debug(self, verbose: bool = False):
-        
         self.model_f_extractor.to(DEVICE)
 
         for model_sensor in self.model_sensors:
             model_sensor.to(DEVICE)
 
+        for pred_error_model in self.pred_error_models:
+            pred_error_model.to(DEVICE)
+
         self.model_f_extractor.eval()
 
-        for model_sensor in self.model_sensors:
-            model_sensor.eval()
+        all_predicted_sen = []
+        all_threshold_sen = []
+        all_threshold_act = np.zeros(len(self.df_real), dtype=float)
+        thresholds_sen = []
+        human_idx_sen = []
 
-        criterion = nn.MSELoss(reduction="none")
+        pred_error_optimizer = []
 
-        model_sensor_losses = [np.zeros(len(self.df_real), dtype=np.float32) for _ in range(len(self.model_sensors))]
+        for model_sensor, pred_error_model in zip(self.model_sensors, self.pred_error_models):
+            pred_error_optimizer.append(torch.optim.SGD(pred_error_model.parameters(), lr=LEARNING_RATE))
 
-        steps = len(self.real_input_indices) // BATCH_SIZE
+            for name, param in model_sensor.named_children():
+                for p in param.parameters():
+                    p.requires_grad = True
+            
+            all_predicted_sen.append(np.zeros(len(self.df_real), dtype=float))
+            human_idx_sen.append(np.zeros(len(self.df_real), dtype=float))
+            all_threshold_sen.append(np.zeros(len(self.df_real), dtype=float))
+            thresholds_sen.append(np.zeros(len(self.df_real), dtype=float))
+
+        actuators = [list(self.inputs).index(item) for item in self.inputs if item in set(ACTUATORS)]
+
+        database_actuators = np.concatenate((
+            self.df_val[:, actuators],
+            self.df_test[:, actuators]
+        ))
+
+        database_actuators, indices, unique_counts = np.unique(database_actuators, axis=0, return_index=True, return_counts=True)
+        
+        attack_indices = np.where(self.all_labels == 1)[0]
+        attack_indices = np.split(attack_indices, np.where(np.diff(attack_indices) != 1)[0] + 1)
+        attack_indices = [(sub[0], sub[-1]) for sub in attack_indices]
+
+        attack_impact_array = np.array([], dtype=int)
+
+        all_labels_threshold = np.copy(self.all_labels).astype(int)
+        all_labels_threshold[attack_impact_array] = 1
+
+        human_inter_counter = 0
+        actuation_alarm = 0
+
+        steps = len(self.real_output_indices) // BATCH_SIZE
+
+        criterion1 = nn.MSELoss(reduction="none") # test_loss_function
+        criterion2 = nn.MSELoss() # threshold_loss_function
+        criterion3 = nn.MSELoss() # ftune_loss_function
 
         for step in range(0, steps):
 
-            #? Wide Deep
-
+            apply_thr_start = self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE][0, 0]
+            apply_thr_end = self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE][-1, 0]
+        
             # Input
             df_in = self.df_real[self.real_input_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()]
 
@@ -876,12 +654,27 @@ class Client:
 
             w_in = w_in.reshape(BATCH_SIZE, WINDOW_PAST, -1)
             w_in = torch.from_numpy(w_in).float().to(DEVICE)
+
+            # Forward pass through the feature extractor
+            x = self.model_f_extractor(w_in, self.mask)
+        
+            set_database_actuators = set(map(tuple, database_actuators))
+
+            window_t_actuator = self.df_real[np.unique(self.real_output_indices[step * BATCH_SIZE:  step * BATCH_SIZE + BATCH_SIZE].flatten())][:, actuators][:BATCH_SIZE, :]
+
+            tmp = [(set(map(tuple, np.expand_dims(x_window_t_actuator, axis=0))) & set_database_actuators) == set() for  x_window_t_actuator in window_t_actuator]
+
+            if np.any(tmp):
+                actuation_alarm = 1
+                all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)] = tmp
             
-            # Predict future sensors values
-            x = self.model_f_extractor(w_in, self.real_mask)
+            else:
+                actuation_alarm = 0
+            
+            idx_threshold = (np.arange(apply_thr_start, apply_thr_end + 1) - HORIZON)[:, None] - np.arange(1, WINDOW_PAST + 1)
 
-            for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask)): 
-
+            for index, (model_sensor, pred_error_model, output_mask) in enumerate(zip(self.model_sensors, self.pred_error_models, self.output_mask)):
+                    
                 # Output
                 df_out = self.df_real[self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, output_mask]
 
@@ -890,68 +683,144 @@ class Client:
 
                 y = model_sensor(x)
 
-                # Calculate error
-                loss = torch.mean(criterion(y, w_out), dim=2)
+                pred_error_sen = torch.mean(criterion1(y, w_out), dim=2)
+
+                all_predicted_sen[index][self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE, 0]] = pred_error_sen.detach().cpu().numpy()[:, 0]
+                all_predicted_sen[index][apply_thr_start - W_ANOMALY * 2: apply_thr_end + 1] = scipy.signal.medfilt(all_predicted_sen[index][apply_thr_start - W_ANOMALY * 2: apply_thr_end + 1], kernel_size=MED_FILTER_LAG)
+
+                threshold_wt_1 = torch.from_numpy(all_predicted_sen[index][idx_threshold][:, :, None]).float().to(DEVICE)
+
+                pred_error_model.zero_grad()
+
+                threshold = pred_error_model(threshold_wt_1).abs()
+
+                thresh_loss = criterion2(torch.squeeze(threshold, dim=2), pred_error_sen)
+                thresh_loss.backward(retain_graph=True)
+
+                pred_error_optimizer[index].step()
+
+                threshold = torch.max(threshold, dim=1)[0].detach().cpu().numpy()
+
+                if np.all(threshold == 0):
+                    pred_error_model.zero_grad()
+                    pred_error_model.apply(lambda model: model.reset_parameters() if isinstance(model, nn.Conv1d) or isinstance(model, nn.Linear) else None)
+
+                    threshold = pred_error_model(threshold_wt_1).abs()
+
+                    thresh_loss = criterion2(torch.squeeze(threshold, dim=2), pred_error_sen)
+                    thresh_loss.backward(retain_graph=True)
+                    
+                    pred_error_optimizer[index].step()
+
+                    threshold = torch.max(threshold, dim=1)[0].detach().cpu().numpy()
                 
-                model_sensor_losses[index][self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE, 0]] = loss.detach().cpu().numpy()[:, 0]
+                threshold = threshold + self.threshold_base
 
-            self.log(msg=f"Step {step} / {steps}", end="\r", verbose=verbose)
+                thresholds_sen[index][apply_thr_start: apply_thr_end + 1] = np.squeeze(threshold)
+
+                idx_win_thr = np.arange(apply_thr_start, apply_thr_end + 1)[:, None] - np.arange(W_ANOMALY)
+
+                all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] = np.all(all_predicted_sen[index][idx_win_thr] > threshold, 1)
+
+            if np.any(all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.count_nonzero(all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)]) <= W_GRACE:
+
+                database_actuators = np.concatenate((database_actuators, window_t_actuator), axis=0)
+                database_actuators = np.unique(database_actuators, axis=0)
+
+                all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)] = 0
+
+            if np.any(all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.all(all_labels_threshold[np.arange(apply_thr_start, apply_thr_end + 1)] == 0):
+
+                database_actuators = np.concatenate((database_actuators, window_t_actuator), axis=0)
+                database_actuators = np.unique(database_actuators, axis=0) 
+
+                human_inter_counter = human_inter_counter + 1 
         
-        subplots = []
+            for index, (model_sensor, pred_error_model, output_mask) in enumerate(zip(self.model_sensors, self.pred_error_models, self.output_mask)):
 
-        output_mask_labels = []
+                if np.any(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.count_nonzero(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)]) <= W_GRACE:
+                    
+                    df_out = self.df_real[self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, output_mask]
 
-        for output_mask in self.output_mask:
-            output_mask_labels.append("-".join(self.inputs[index] for index in output_mask))
+                    w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
+                    w_out = torch.from_numpy(w_out).float().to(DEVICE)
 
-        for index, model_sensor_loss in enumerate(model_sensor_losses):
+                    # Prepare the optimizer
+                    ftune_optimizer = torch.optim.SGD(model_sensor.parameters(), lr=LEARNING_RATE, momentum=0.9, dampening=0.9, weight_decay=0.001)
+                    ftune_scheduler = ReduceLROnPlateau(ftune_optimizer)
+                    # Fine-tune the output section
+                    for epoch in range(T_EPOCHS):
+                        model_sensor.zero_grad()
+                        f_extracted = self.model_f_extractor(w_in[:-4].float().to(DEVICE))
+                        y_t_sen = model_sensor(f_extracted)
+                        loss = criterion3(y_t_sen, w_out[:-4])
+                        loss.backward()
+                        ftune_optimizer.step()
+                        ftune_scheduler.step(loss)
 
-            nonzero = np.nonzero(model_sensor_loss)[0]
-            start = nonzero[0]
-            end = nonzero[-1] + 1 
+                    # The alarm is silenced
+                    all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] = 0
 
-            all_predicted = model_sensor_loss[start:end]
-            all_predicted = scipy.signal.medfilt(all_predicted, kernel_size=MED_FILTER_LAG)
+                if np.any(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.all(all_labels_threshold[np.arange(apply_thr_start, apply_thr_end + 1)] == 0):
+                    
+                    df_out = self.df_real[self.real_output_indices[step * BATCH_SIZE: step * BATCH_SIZE + BATCH_SIZE].flatten()][:, output_mask]
 
-            all_labels = np.where(self.all_labels[start:end] == 0, "green", "red")
+                    w_out = df_out.reshape(BATCH_SIZE, WINDOW_PRESENT, -1)
+                    w_out = torch.from_numpy(w_out).float().to(DEVICE)
 
-            subplots.append((all_predicted, all_labels, output_mask_labels[index]))
+                    # Increment the human intervention counter
+                    human_inter_counter += 1
+                    # Flag the indices of human intervention for debugging purposes
+                    human_idx_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] = 1
+                    ftune_optimizer = torch.optim.SGD(model_sensor.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM, dampening=0.9, weight_decay=0.001)
+                    ftune_scheduler = ReduceLROnPlateau(ftune_optimizer)
+                    # Fine-tune the output section
+                    for epoch in range(T_EPOCHS):
+                        model_sensor.zero_grad()
+                        w_t_1 = w_in.detach().clone()
+                        f_extracted = self.model_f_extractor(w_t_1[:-4].float().to(DEVICE))
+                        y_t_sen = model_sensor(f_extracted)
+                        loss = criterion3(y_t_sen, w_out[:-4])
+                        loss.backward()
+                        ftune_optimizer.step()
+                        ftune_scheduler.step(loss)
 
-            # w_in = (np.arange(SAMPLING_START, len(all_predicted), VAL_STEP) - HORIZON - WINDOW_PRESENT)[:, None] - np.arange(1, WINDOW_PAST + 1)
-            # w_in = np.sort(w_in)
-            # w_in = w_in[: (len(w_in) // BATCH_SIZE) * BATCH_SIZE, :]
-            
-            # w_out = np.arange(SAMPLING_START, len(all_predicted), VAL_STEP)[:, None] - np.arange(1, WINDOW_PRESENT + 1)
-            # w_out = np.sort(w_out)
-            # w_out = w_out[: (len(w_out) // BATCH_SIZE) * BATCH_SIZE, :]
+            self.log(" " * 100, end="\r", verbose=verbose)
+            self.log(f"Step {step + 1} / {steps}", end="\r", verbose=verbose)
 
-        import matplotlib.pyplot as plt
-
-        fig, axes = plt.subplots(len(subplots), 1, figsize=(10, 3 * len(subplots)), sharex=True)
-
-        if len(subplots) == 1:
-            axes = [axes]
-
-        for ax, (pred, colors, label) in zip(axes, subplots):
-            x = np.arange(len(pred))
-            ax.scatter(x, pred, c=colors, s=10)
-            ax.plot(x, pred)
-            ax.set_ylabel("Value")
-            ax.set_title(label)
-
-        axes[-1].set_xlabel("Index")
-        plt.tight_layout()
-        plt.savefig("debug.png")
+        print("Number of human interventions: ", human_inter_counter)
+        # end for enumerate(dl_test):                                            
+        # Combining the anomaly detection results of all output sections
+        all_threshold = np.zeros(len(self.df_real), dtype=float)
+        for all_thr in all_threshold_sen:
+            all_threshold = np.logical_or(all_threshold, all_thr)
+        # Combine with anomaly detection in actuators
+        all_threshold = np.logical_or(all_threshold, all_threshold_act)
+        # Make sure that all arrays have the same length
+        all_threshold = all_threshold[: len(self.all_labels)]
+        all_labels_threshold = np.copy(self.all_labels)[: len(self.all_labels)]
+        # Attack impact is part of the attack
+        # Ref: http://dx.doi.org/10.1145/3196494.3196546
+        all_labels_threshold[attack_impact_array] = all_threshold[attack_impact_array]
+        # Calculate the confusion matrix
+        tn, fp, fn, tp = confusion_matrix(all_labels_threshold, all_threshold).ravel()
+        print("accuracy {}".format(accuracy_score(all_labels_threshold, all_threshold)))
+        print("precision {}".format(precision_score(all_labels_threshold, all_threshold)))
+        print("recall {}".format(recall_score(all_labels_threshold, all_threshold)))
+        print("false positive rate", fp/(fp+tn))
+        print("false negative rate", fn/(tp+fn))
+        print("\x1b[6;30;42m f1_oneclass_score \x1b[0m {}".format(f1_score(all_labels_threshold, all_threshold)))
 
     def set_model_f_extractor(self, model_f_extractor: ModelFExtractor | OrderedDict):
-        self.model_f_extractor.load_state_dict(deepcopy(model_f_extractor.state_dict()) if isinstance(model_f_extractor, ModelFExtractor) else model_f_extractor)
+        self.model_f_extractor.load_state_dict(deepcopy(model_f_extractor.state_dict()) if isinstance(model_f_extractor, ModelFExtractor) else deepcopy(model_f_extractor))
 
     def set_model_sensors(self, model_sensors: list[ModelSensors | OrderedDict]):
         for model_sensor, loaded_model_sensor in zip(self.model_sensors, model_sensors):
-            model_sensor.load_state_dict(deepcopy(loaded_model_sensor.state_dict()) if isinstance(loaded_model_sensor, ModelSensors) else loaded_model_sensor)
+            model_sensor.load_state_dict(deepcopy(loaded_model_sensor.state_dict()) if isinstance(loaded_model_sensor, ModelSensors) else deepcopy(loaded_model_sensor))
 
-    def set_pred_error_model(self, pred_error_model: PredErrorModel | OrderedDict):
-        self.pred_error_model.load_state_dict(deepcopy(pred_error_model.state_dict()) if isinstance(pred_error_model, PredErrorModel) else pred_error_model)
+    def set_pred_error_models(self, pred_error_models: PredErrorModel | OrderedDict):
+        for pred_error_model, loaded_pred_error_model in zip(self.pred_error_models, pred_error_models):
+            pred_error_model.load_state_dict(deepcopy(loaded_pred_error_model.state_dict()) if isinstance(loaded_pred_error_model, PredErrorModel) else deepcopy(loaded_pred_error_model))
 
 def generate_non_iid_clients(verbose: bool = False) -> list[Client]:
 

@@ -79,17 +79,12 @@ if __name__ == "__main__":
     if config.SIMULATION:
         
         wide_deep_network = torch.load(join(WIDE_DEEP_NETWORK, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"), map_location=config.DEVICE)
-        # threshold_network = torch.load(join(THRESHOLD_NETWORK, f"{THRESHOLD_NETWORK_BASENAME}.pt"), map_location=config.DEVICE)
+        threshold_network = torch.load(join(THRESHOLD_NETWORK, f"{THRESHOLD_NETWORK_BASENAME}.pt"), map_location=config.DEVICE)
         
         client = max(clients, key=lambda x: len(x.inputs))
         client.set_model_f_extractor(wide_deep_network["model_f_extractor"])
         client.set_model_sensors(wide_deep_network["model_sensors"][str(client)])
-        client.debug(verbose=True)
-
-        # for client in clients:
-        #     client.set_model_f_extractor(wide_deep_network["model_f_extractor"])
-        #     client.set_model_sensors(wide_deep_network["model_sensors"][str(client)])
-        #     # client.set_pred_error_model(threshold_network[str(client)])
-        #     client.debug(verbose=True)
+        client.set_pred_error_models(threshold_network[str(client)])
+        client.test(verbose=True)
     
     
