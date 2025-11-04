@@ -9,6 +9,9 @@ from os import makedirs
 
 from datetime import datetime
 
+import numpy as np
+from copy import deepcopy
+
 import torch
 
 if __name__ == "__main__":
@@ -46,13 +49,13 @@ if __name__ == "__main__":
             print(f"{utils.log_timestamp_status()} Client {index} / {len(clients)}")
 
             client.set_model_f_extractor(wide_deep_network["model_f_extractor"])
-            client.set_model_sensor(wide_deep_network["model_sensors"][str(client)])
+            client.set_model_sensors(wide_deep_network["model_sensors"][str(client)])
 
             train_loss = client.train_pred_error_model(verbose=config.VERBOSE)
 
-            model_dict[str(client)] = client.pred_error_model.state_dict()
+            model_dict[str(client)] = [deepcopy(pred_error_model.state_dict()) for pred_error_model in client.pred_error_models]
 
-            data.append([f"{'-'.join(sorted(client.inputs))}", train_loss])
+            data.append([f"{'-'.join(sorted(client.inputs))}", np.mean(train_loss)])
 
         torch.save(model_dict, model_path)
 
@@ -71,10 +74,17 @@ if __name__ == "__main__":
     if config.SIMULATION:
         
         wide_deep_network = torch.load(join(WIDE_DEEP_NETWORK, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"), map_location=config.DEVICE)
-        threshold_network = torch.load(join(THRESHOLD_NETWORK, f"{THRESHOLD_NETWORK_BASENAME}.pt"), map_location=config.DEVICE)
+        # threshold_network = torch.load(join(THRESHOLD_NETWORK, f"{THRESHOLD_NETWORK_BASENAME}.pt"), map_location=config.DEVICE)
         
-        for client in clients:
-            client.set_model_f_extractor(wide_deep_network["model_f_extractor"])
-            client.set_model_sensor(wide_deep_network["model_sensors"][str(client)])
-            client.set_pred_error_model(threshold_network[str(client)])
-            client.test(verbose=True)
+        client = max(clients, key=lambda x: len(x.inputs))
+        client.set_model_f_extractor(wide_deep_network["model_f_extractor"])
+        client.set_model_sensors(wide_deep_network["model_sensors"][str(client)])
+        client.debug(verbose=True)
+
+        # for client in clients:
+        #     client.set_model_f_extractor(wide_deep_network["model_f_extractor"])
+        #     client.set_model_sensors(wide_deep_network["model_sensors"][str(client)])
+        #     # client.set_pred_error_model(threshold_network[str(client)])
+        #     client.debug(verbose=True)
+    
+    
