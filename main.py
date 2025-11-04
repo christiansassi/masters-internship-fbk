@@ -33,12 +33,17 @@ if __name__ == "__main__":
         
         makedirs(name=THRESHOLD_NETWORK, exist_ok=True)
 
+        session_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+        session_path = join(THRESHOLD_NETWORK, session_id)
+        makedirs(name=session_path, exist_ok=True)
+
         session_id = str(int(datetime.now().timestamp()))
 
-        model_path = join(THRESHOLD_NETWORK, f"{THRESHOLD_NETWORK_BASENAME}-{session_id}.pt")
+        model_path = join(session_path, f"{THRESHOLD_NETWORK_BASENAME}.pt")
         model_dict = {}
 
-        run = config.WandbConfig.init_run(name=f"[{'GPU' if config.GPU else 'CPU'}] Threshold Network", tags=["pytorch", "threshold", "all_sensors"])
+        run = config.WandbConfig.init_run(name=f"[{'GPU' if config.GPU else 'CPU'}] Threshold Network", tags=["pytorch", "threshold", "sensors_and_actuators"])
 
         wide_deep_network = torch.load(join(WIDE_DEEP_NETWORK, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"), map_location=config.DEVICE)
 
