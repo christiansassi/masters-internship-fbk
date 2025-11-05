@@ -9,6 +9,7 @@ from os import makedirs
 
 from datetime import datetime
 
+import math
 import numpy as np
 from copy import deepcopy
 
@@ -20,6 +21,19 @@ if __name__ == "__main__":
 
     # Instantiate clients
     clients = generate_non_iid_clients(verbose=True)
+
+    # Adjust MAX_EPOCHS and MAX_STEPS to match DAICS min BATCH_SIZE and hardware max BATCH_SIZE
+    min_batch_size = daics.BATCH_SIZE
+    max_batch_size = config.WIDE_DEEP_MAX_BATCH_SIZE
+
+    max_size = len(max(clients, key=lambda x: len(x.df_train)).df_train)
+    min_size = len(min(clients, key=lambda x: len(x.df_train)).df_train)
+
+    flad.MAX_EPOCHS = daics.WIDE_DEEP_EPOCHS
+    flad.MIN_EPOCHS = 1
+
+    flad.MAX_STEPS = math.ceil(max_size / min_batch_size) 
+    flad.MIN_STEPS = max(1, math.floor(min_size / max_batch_size))
 
     # Instantiate server
     server = Server(clients=clients)

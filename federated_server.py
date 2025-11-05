@@ -20,10 +20,10 @@ class Server:
         self.clients = clients
 
         self.model_f_extractor = ModelFExtractor(
-            window_size_in=WINDOW_PAST, 
-            window_size_out=WINDOW_PRESENT, 
+            window_size_in=daics.WINDOW_PAST, 
+            window_size_out=daics.WINDOW_PRESENT, 
             n_devices_in=len(GLOBAL_INPUTS), 
-            kernel_size=KERNEL_SIZE
+            kernel_size=daics.KERNEL_SIZE
         )
 
         self.score = float("inf")
@@ -55,12 +55,41 @@ class Server:
             else:
                 scaling_factor = 0
 
-            client.epochs = int(MIN_EPOCHS + (MAX_EPOCHS - MIN_EPOCHS) * scaling_factor)
-            client.steps = int(MIN_STEPS + (MAX_STEPS - MIN_STEPS) * scaling_factor)
+            client.epochs = int(flad.MIN_EPOCHS + (flad.MAX_EPOCHS - flad.MIN_EPOCHS) * scaling_factor)
+            client.steps = int(flad.MIN_STEPS + (flad.MAX_STEPS - flad.MIN_STEPS) * scaling_factor)
 
             selected_clients[index] = client
         
         return selected_clients
+    
+    def select_clients(self) -> list[Client]:
+
+        selected_clients = []
+
+        min_score = float("inf")
+        max_score = float("-inf")
+
+        for client in self.clients:
+            if client.score > self.score:
+                continue
+
+            min_score = min(min_score, client.score)
+            max_score = max(max_score, client.score)
+
+            selected_clients.append(client)
+        
+        for client in selected_clients:
+
+            if max_score != min_score:
+                scaling_factor = (client.score - max_score) / (min_score - max_score)
+            else:
+                scaling_factor = 1
+
+            client.epochs = int(flad.MIN_EPOCHS + (flad.MAX_EPOCHS - flad.MIN_EPOCHS) * scaling_factor)
+            client.steps  = int(flad.MIN_STEPS  + (flad.MAX_STEPS  - flad.MIN_STEPS ) * scaling_factor)
+
+        return selected_clients
+
 
     def aggregate_networks(self, clients: list[Client], weighted: bool = False) -> ModelFExtractor:
         
@@ -220,7 +249,7 @@ class Server:
             }, join(round_path, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"))
             #!###################
 
-            logging.info(f"Patience {stop_counter} / {FLAD_PATIENCE}")
+            logging.info(f"Patience {stop_counter} / {flad.FLAD_PATIENCE}")
 
             log = {
                 "round": round_num,
@@ -236,7 +265,7 @@ class Server:
             run.log(log)
 
             #? Check stop conditions
-            if stop_counter >= FLAD_PATIENCE:
+            if stop_counter >= flad.FLAD_PATIENCE:
                 break
         
         self.model_f_extractor = deepcopy(best_model_f_extractor)

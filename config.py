@@ -22,7 +22,7 @@ THRESHOLD_NETWORK: bool = False
 SIMULATION: bool = False
 
 GPU: bool = True
-WANDB: bool = True
+WANDB: bool = False
 
 VERBOSE: bool = True
 
