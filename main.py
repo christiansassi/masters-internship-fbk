@@ -34,6 +34,10 @@ if __name__ == "__main__":
 
     flad.MAX_STEPS = math.ceil(max_size / min_batch_size) 
     flad.MIN_STEPS = max(1, math.floor(min_size / max_batch_size))
+    
+    print(f"{utils.log_timestamp_status()} EPOCHS {flad.MIN_EPOCHS} - {flad.MAX_EPOCHS}")
+    print(f"{utils.log_timestamp_status()} STEPS {flad.MIN_STEPS} - {flad.MAX_STEPS}")
+    print(f"{utils.log_timestamp_status()} BATCH_SIZE {min_batch_size} - {max_batch_size}")
 
     # Instantiate server
     server = Server(clients=clients)
