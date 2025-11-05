@@ -153,22 +153,29 @@ class Client:
         best_model_f_extractor = None
         best_model_sensor = None
 
-        # Calculate batch_size
-        batch_size = len(self.train_input_indices) // self.steps
+        # 1. steps is decided by your algorithm beforehand
+        steps = self.steps  
+
+        # 2. enforce constraints on steps only
+        steps = max(1, min(steps, MAX_STEPS))
+
+        # 3. derive batch_size from steps
+        batch_size = len(self.train_input_indices) // steps
+
+        # 4. cap batch_size if needed
         batch_size = min(batch_size, WIDE_DEEP_MAX_BATCH_SIZE)
 
-        # Recalculate steps
-        self.steps = len(self.train_input_indices) // batch_size
-        self.steps = min(self.steps, MAX_STEPS)
+        # 5. recompute steps because capping batch_size may change feasibility
+        steps = len(self.train_input_indices) // batch_size
 
-        # Recalculate batch_size
-        batch_size = len(self.train_input_indices) // self.steps
+        self.steps = steps
+        self.batch_size = batch_size
 
         # Calculate indices
-        train_input_indices = self.train_input_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
-        train_output_indices = self.train_output_indices[:(len(self.train_input_indices) // batch_size) * batch_size]
+        train_input_indices = self.train_input_indices[:self.steps * self.batch_size]
+        train_output_indices = self.train_output_indices[:self.steps * self.batch_size]
 
-        train_mask = torch.zeros(batch_size, WINDOW_PAST, len(GLOBAL_INPUTS))
+        train_mask = torch.zeros(self.batch_size, WINDOW_PAST, len(GLOBAL_INPUTS))
         train_mask[:, :, self.input_mask] = 1
         train_mask = train_mask.to(DEVICE)
 
@@ -182,17 +189,15 @@ class Client:
 
             train_loss = 0
 
-            steps = len(train_input_indices) // batch_size
-
-            for step, batch_index in enumerate(np.random.permutation(range(0, steps)), start=1):
+            for step, batch_index in enumerate(np.random.permutation(range(0, self.steps)), start=1):
                 
                 # Input
-                df_in = self.df_train[train_input_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()]
+                df_in = self.df_train[train_input_indices[batch_index * self.batch_size: batch_index * self.batch_size + self.batch_size].flatten()]
 
                 w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
                 w_in[:, self.input_mask] = df_in
 
-                w_in = w_in.reshape(batch_size, WINDOW_PAST, -1)
+                w_in = w_in.reshape(self.batch_size, WINDOW_PAST, -1)
                 w_in = torch.from_numpy(w_in).float().to(DEVICE)
 
                 # Reset gradients
@@ -207,9 +212,9 @@ class Client:
                 for model_sensor, output_mask in zip(self.model_sensors, self.output_mask):
                     
                     # Output
-                    df_out = self.df_train[train_output_indices[batch_index * batch_size: batch_index * batch_size + batch_size].flatten()][:, output_mask]
+                    df_out = self.df_train[train_output_indices[batch_index * self.batch_size: batch_index * self.batch_size + self.batch_size].flatten()][:, output_mask]
 
-                    w_out = df_out.reshape(batch_size, WINDOW_PRESENT, -1)
+                    w_out = df_out.reshape(self.batch_size, WINDOW_PRESENT, -1)
                     w_out = torch.from_numpy(w_out).float().to(DEVICE)
 
                     model_sensor.zero_grad()
@@ -226,9 +231,9 @@ class Client:
                 train_loss = train_loss + loss.item()
 
                 self.log(" " * 100, end="\r", verbose=verbose)
-                self.log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Training loss {train_loss / step}", end="\r", verbose=verbose)
+                self.log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {self.steps} | Training loss {train_loss / step}", end="\r", verbose=verbose)
 
-            train_loss = train_loss / steps
+            train_loss = train_loss / self.steps
 
             min_train_loss = min(min_train_loss, train_loss)
 
