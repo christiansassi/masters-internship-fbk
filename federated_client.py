@@ -124,6 +124,7 @@ class Client:
 
         self.epochs = 0
         self.steps = 0
+        self.batch_size = 0
         self.score = float("-inf")
 
         self.input_mask = [list(GLOBAL_INPUTS).index(x) for x in self.inputs]

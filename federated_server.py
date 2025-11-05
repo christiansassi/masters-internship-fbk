@@ -188,7 +188,7 @@ class Server:
                 stats[client_id]["eval_loss"] = eval_loss
                 stats[client_id]["epochs"] = client.epochs
                 stats[client_id]["steps"] = client.steps
-                stats[client_id]["batch_size"] = len(client.train_input_indices) // client.steps
+                stats[client_id]["batch_size"] = client.batch_size
 
                 self.score = self.score + eval_loss
 
