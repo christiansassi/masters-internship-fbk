@@ -153,20 +153,10 @@ class Client:
         best_model_f_extractor = None
         best_model_sensor = None
 
-        # 1. steps is decided by your algorithm beforehand
-        steps = self.steps  
-
-        # 2. enforce constraints on steps only
-        steps = max(1, min(steps, MAX_STEPS))
-
-        # 3. derive batch_size from steps
-        batch_size = len(self.train_input_indices) // steps
-
-        # 4. cap batch_size if needed
+        steps = max(1, min(self.steps, MAX_STEPS))
+        batch_size = max(1, len(self.train_input_indices) // steps)
         batch_size = min(batch_size, WIDE_DEEP_MAX_BATCH_SIZE)
-
-        # 5. recompute steps because capping batch_size may change feasibility
-        steps = len(self.train_input_indices) // batch_size
+        steps = max(1, len(self.train_input_indices) // batch_size)
 
         self.steps = steps
         self.batch_size = batch_size
