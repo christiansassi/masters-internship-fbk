@@ -109,13 +109,13 @@ def prepare_sliding_windows(df_train: pd.DataFrame = None, df_val: pd.DataFrame 
     windows = []
 
     if df_train is not None:
-        windows.append((df_train, TRAIN_STEP))
+        windows.append((df_train, daics.TRAIN_STEP))
     
     if df_val is not None:
-        windows.append((df_val, VAL_STEP))
+        windows.append((df_val, daics.VAL_STEP))
     
     if df_test is not None:
-        windows.append((df_test, TEST_STEP))
+        windows.append((df_test, daics.TEST_STEP))
 
     results = []
 
@@ -130,9 +130,9 @@ def prepare_sliding_windows(df_train: pd.DataFrame = None, df_val: pd.DataFrame 
         # resulting in past time steps for prediction.
         # Finally, the windows are trimmed to be divisible by BATCH_SIZE.
 
-        input_indices = (np.arange(SAMPLING_START, len(df), step) - HORIZON - WINDOW_PRESENT)[:, None] - np.arange(1, WINDOW_PAST + 1)
+        input_indices = (np.arange(daics.SAMPLING_START, len(df), step) - daics.HORIZON - daics.WINDOW_PRESENT)[:, None] - np.arange(1, daics.WINDOW_PAST + 1)
         input_indices = np.sort(input_indices)
-        input_indices = input_indices[: (len(input_indices) // BATCH_SIZE) * BATCH_SIZE, :]
+        input_indices = input_indices[: (len(input_indices) // daics.BATCH_SIZE) * daics.BATCH_SIZE, :]
 
         results.append(input_indices)
 
@@ -144,9 +144,9 @@ def prepare_sliding_windows(df_train: pd.DataFrame = None, df_val: pd.DataFrame 
         # resulting in the target indices to be predicted.
         # Finally, the windows are trimmed to be divisible by BATCH_SIZE.
 
-        output_indices = np.arange(SAMPLING_START, len(df), step)[:, None] - np.arange(1, WINDOW_PRESENT + 1)
+        output_indices = np.arange(daics.SAMPLING_START, len(df), step)[:, None] - np.arange(1, daics.WINDOW_PRESENT + 1)
         output_indices = np.sort(output_indices)
-        output_indices = output_indices[: (len(output_indices) // BATCH_SIZE) * BATCH_SIZE, :]
+        output_indices = output_indices[: (len(output_indices) // daics.BATCH_SIZE) * daics.BATCH_SIZE, :]
 
         results.append(output_indices)
 
@@ -222,54 +222,3 @@ if __name__ == "__main__":
         group.create_dataset("df_attack_output_indices", data=df_attack_output_indices)
     
     hf.close()
-
-    # DAICS
-    # hf = h5py.File(name=OUTPUT_FILE_DAICS, mode="w")
-    # group_normal = hf.create_group(f"normal")
-    # group_attack = hf.create_group(f"attack")
-
-    # df_normal_train, df_normal_val, df_normal_test = split_train_val_test(df=df_normal)
-
-    # (
-    #     df_normal_train_input_indices, 
-    #     df_normal_train_output_indices, 
-        
-    #     df_normal_val_input_indices, 
-    #     df_normal_val_output_indices, 
-        
-    #     df_normal_test_input_indices, 
-    #     df_normal_test_output_indices
-    # ) = prepare_sliding_windows(df_train=df_normal_train, df_val=df_normal_val, df_test=df_normal_test)
-
-    # group_normal.attrs["columns"] = list(df_normal.columns)
-    # group_normal.attrs["inputs"] = list(set(df_normal.columns) - set(["Normal/Attack"]))
-    # group_normal.attrs["outputs"] = [column for column in list(df_normal.columns) if column in GLOBAL_OUTPUTS]
-
-    # group_normal.create_dataset("df_normal_train", data=df_normal_train.values)
-    # group_normal.create_dataset("df_normal_val", data=df_normal_val.values)
-    # group_normal.create_dataset("df_normal_test", data=df_normal_test.values)
-
-    # group_normal.create_dataset("df_normal_train_input_indices", data=df_normal_train_input_indices)
-    # group_normal.create_dataset("df_normal_train_output_indices", data=df_normal_train_output_indices)
-
-    # group_normal.create_dataset("df_normal_val_input_indices", data=df_normal_val_input_indices)
-    # group_normal.create_dataset("df_normal_val_output_indices", data=df_normal_val_output_indices)
-
-    # group_normal.create_dataset("df_normal_test_input_indices", data=df_normal_test_input_indices)
-    # group_normal.create_dataset("df_normal_test_output_indices", data=df_normal_test_output_indices)
-
-    # (
-    #     df_attack_input_indices,
-    #     df_attack_output_indices
-    # ) = prepare_sliding_windows(df_test=df_attack)
-
-    # group_attack.attrs["columns"] = list(df_attack.columns)
-    # group_attack.attrs["inputs"] = list(set(df_attack.columns) - set(["Normal/Attack"]))
-    # group_attack.attrs["outputs"] = [column for column in list(df_attack.columns) if column in GLOBAL_OUTPUTS]
-
-    # group_attack.create_dataset("df_attack", data=df_attack.values)
-
-    # group_attack.create_dataset("df_attack_input_indices", data=df_attack_input_indices)
-    # group_attack.create_dataset("df_attack_output_indices", data=df_attack_output_indices)
-
-    # hf.close()

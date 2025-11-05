@@ -43,7 +43,7 @@ from itertools import chain, combinations
 
 STAGES: list[list[str]] = []
 
-for r in range(5, len(DEFAULT_STAGES) + 1):
+for r in range(len(DEFAULT_STAGES) - 1, len(DEFAULT_STAGES) + 1):
     for combo in combinations(DEFAULT_STAGES, r):
         flat = list(chain.from_iterable(combo))
         flat = sorted(flat, key=lambda x: GLOBAL_INPUTS.index(x))
@@ -98,42 +98,48 @@ ATTACKS: list[list[str]] = [
 ]
 
 #? === Constants from DAICS ===
-WINDOW_PAST: int = 60
-HORIZON: int = 50
-WINDOW_PRESENT: int = 4
-SAMPLING_START: int = WINDOW_PAST + HORIZON + WINDOW_PRESENT
+class DAICS:
+    WINDOW_PAST: int = 60
+    HORIZON: int = 50
+    WINDOW_PRESENT: int = 4
+    SAMPLING_START: int = WINDOW_PAST + HORIZON + WINDOW_PRESENT
 
-TRAIN_STEP: int = 1
-VAL_STEP: int = 1
-TEST_STEP: int = 1
-BATCH_SIZE: int = 32
-WIDE_DEEP_EPOCHS: int = 50
-THRESHOLD_EPOCHS = 5
-T_EPOCHS: int = 10
+    TRAIN_STEP: int = 1
+    VAL_STEP: int = 1
+    TEST_STEP: int = 1
+    BATCH_SIZE: int = 32
+    WIDE_DEEP_EPOCHS: int = 50
+    THRESHOLD_EPOCHS = 5
+    T_EPOCHS: int = 10
 
-KERNEL_SIZE = 2
-LEARNING_RATE: float = 0.01
-MOMENTUM: float = 0.9
-DAICS_PATIENCE: int = 40
-LOSS: str = "mse"
+    KERNEL_SIZE = 2
+    LEARNING_RATE: float = 0.01
+    MOMENTUM: float = 0.9
+    DAICS_PATIENCE: int = 40
+    LOSS: str = "mse"
 
-W_ANOMALY: int = 15
+    W_ANOMALY: int = 15
 
-# According to : https://www.researchgate.net/publication/305809559
-# Some of the attacks have a stronger effect on the dynamics of system and causing more time
-# for the system to stabilize (after the attack). Simpler attacks, such as those that effect flow rates,
-# require less time to stabilize. Also, some attacks do not take effect immediately (attack impact is seen after the attack's end).
-# Based on that, attack impact is considered as part of the attack, and we avoid human intervention on the period just after the attack
-W_GRACE: int = 60
+    # According to : https://www.researchgate.net/publication/305809559
+    # Some of the attacks have a stronger effect on the dynamics of system and causing more time
+    # for the system to stabilize (after the attack). Simpler attacks, such as those that effect flow rates,
+    # require less time to stabilize. Also, some attacks do not take effect immediately (attack impact is seen after the attack's end).
+    # Based on that, attack impact is considered as part of the attack, and we avoid human intervention on the period just after the attack
+    W_GRACE: int = 60
 
-MED_FILTER_LAG: int = 59
+    MED_FILTER_LAG: int = 59
+
+daics = DAICS()
 
 #? === Constants from FLAD ===
-MIN_EPOCHS: int = 1
-MAX_EPOCHS: int = 5
-MIN_STEPS: int = 10
-MAX_STEPS: int = 1000
-FLAD_PATIENCE: int = 25
+class FLAD:
+    MIN_EPOCHS: int = 1
+    MAX_EPOCHS: int = 5
+    MIN_STEPS: int = 10
+    MAX_STEPS: int = 1000
+    FLAD_PATIENCE: int = 25
+
+flad = FLAD()
 
 #? === Train, Val, Test ===
 TRAIN: float = 0.8
