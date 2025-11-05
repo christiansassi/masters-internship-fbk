@@ -154,10 +154,9 @@ class Client:
         best_model_f_extractor = None
         best_model_sensor = None
 
-        steps = max(1, min(self.steps, flad.MAX_STEPS))
-        batch_size = max(1, len(self.train_input_indices) // steps)
-        batch_size = min(batch_size, WIDE_DEEP_MAX_BATCH_SIZE)
-        steps = max(1, len(self.train_input_indices) // batch_size)
+        steps = max(flad.MIN_STEPS, min(self.steps, flad.MAX_STEPS))
+        batch_size = max(daics.BATCH_SIZE, min(len(self.train_input_indices) // steps, WIDE_DEEP_MAX_BATCH_SIZE))
+        steps = max(flad.MIN_STEPS, min(len(self.train_input_indices) // batch_size, flad.MAX_STEPS))
 
         self.steps = steps
         self.batch_size = batch_size

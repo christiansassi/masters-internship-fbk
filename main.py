@@ -29,9 +29,6 @@ if __name__ == "__main__":
     max_size = len(max(clients, key=lambda x: len(x.df_train)).df_train)
     min_size = len(min(clients, key=lambda x: len(x.df_train)).df_train)
 
-    flad.MAX_EPOCHS = daics.WIDE_DEEP_EPOCHS
-    flad.MIN_EPOCHS = 1
-
     flad.MAX_STEPS = math.ceil(max_size / min_batch_size) 
     flad.MIN_STEPS = max(1, math.floor(min_size / max_batch_size))
     

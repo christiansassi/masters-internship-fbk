@@ -135,8 +135,10 @@ daics = DAICS()
 class FLAD:
     MIN_EPOCHS: int = 1
     MAX_EPOCHS: int = 5
+
     MIN_STEPS: int = 10
     MAX_STEPS: int = 1000
+
     FLAD_PATIENCE: int = 25
 
 flad = FLAD()
