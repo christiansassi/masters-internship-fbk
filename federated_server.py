@@ -85,8 +85,8 @@ class Server:
             else:
                 scaling_factor = 1
 
-            client.epochs = int(flad.MIN_EPOCHS + (flad.MAX_EPOCHS - flad.MIN_EPOCHS) * scaling_factor)
-            client.steps  = int(flad.MIN_STEPS  + (flad.MAX_STEPS  - flad.MIN_STEPS ) * scaling_factor)
+            client.epochs = max(flad.MIN_EPOCHS, int(flad.MIN_EPOCHS + (flad.MAX_EPOCHS - flad.MIN_EPOCHS) * scaling_factor))
+            client.steps  = max(flad.MIN_STEPS, int(flad.MIN_STEPS  + (flad.MAX_STEPS  - flad.MIN_STEPS ) * scaling_factor))
 
         return selected_clients
 
