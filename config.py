@@ -118,7 +118,7 @@ class WandbConfig:
 
 #TODO add other hardware specs
 BENCHMARKS = {
-    "be0582c6-0ec0-504a-842e-b1ff65901906": 19794, # NVIDIA GeForce GTX 1660 Ti 6441992192
+    "be0582c6-0ec0-504a-842e-b1ff65901906": 19776, # NVIDIA GeForce GTX 1660 Ti 6441992192
 }
 
 WIDE_DEEP_MAX_BATCH_SIZE = BENCHMARKS.get(hardware, float("inf"))
