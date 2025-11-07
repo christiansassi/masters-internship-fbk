@@ -15,7 +15,7 @@ import torch
 
 class Server:
 
-    def __init__(self, clients: list[Client]):
+    def __init__(self, clients: list[Client], model_f_extractor: ModelFExtractor = None):
         
         self.clients = clients
 
@@ -24,12 +24,9 @@ class Server:
             window_size_out=daics.WINDOW_PRESENT, 
             n_devices_in=len(GLOBAL_INPUTS), 
             kernel_size=daics.KERNEL_SIZE
-        )
+        ) if model_f_extractor is None else deepcopy(model_f_extractor.state_dict())
 
         self.score = float("inf")
-
-        for client in self.clients:
-            client.set_model_f_extractor(model_f_extractor=self.model_f_extractor)
 
     def select_clients(self) -> list[Client]:
 
