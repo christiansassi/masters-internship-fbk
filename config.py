@@ -147,7 +147,7 @@ import traceback
 from datetime import datetime
 
 ROOT_LOGS = "logs"
-SESSION_LOGS = join(ROOT_LOGS, f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
+SESSION_LOGS = join(ROOT_LOGS, f"{'.py'.join(sys.modules['__main__'].__file__.split('.py')[:-1])}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
 
 makedirs(ROOT_LOGS, exist_ok=True)
 
