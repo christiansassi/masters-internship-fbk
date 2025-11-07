@@ -231,7 +231,7 @@ class Client:
                 train_loss = train_loss + loss.item()
 
                 printplus(" " * 100, end="\r")
-                printplus(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {self.steps} | Training loss {train_loss / step}")
+                printplus(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {self.steps} | Training loss {train_loss / step}", end="\r")
 
             train_loss = train_loss / self.steps
 
@@ -286,7 +286,7 @@ class Client:
                     val_loss = val_loss + loss.item()
 
                     printplus(" " * 100, end="\r")
-                    printplus(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss / step}")
+                    printplus(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss / step}", end="\r")
 
             val_loss = val_loss / steps
 
@@ -369,7 +369,7 @@ class Client:
                 eval_loss = eval_loss + loss.item()
 
                 printplus(" " * 100, end="\r")
-                printplus(f"Step: {step} / {steps} | Evaluation loss: {eval_loss / step}")
+                printplus(f"Step: {step} / {steps} | Evaluation loss: {eval_loss / step}", end="\r")
                 
         eval_loss = eval_loss / steps
 
