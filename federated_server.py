@@ -2,7 +2,6 @@ from config import *
 from constants import *
 from federated_client import *
 from models import *
-import utils
 
 from os import makedirs
 
@@ -125,8 +124,8 @@ class Server:
             round_path = join(checkpoint_path, f"round_{round_num}")
             makedirs(name=round_path, exist_ok=True)
 
-            print("")
-            logging.info(f"---------- Round {round_num} ----------")
+            printplus("")
+            printplus(f"---------- Round {round_num} ----------")
             
             for client in self.clients:
                 client_id = map_clients_ids[str(client)]
@@ -141,8 +140,8 @@ class Server:
             start = time()
 
             for index, client in enumerate(selected_clients, start=1):
-                print(f"{utils.log_timestamp_status()} Training {index} / {len(selected_clients)}")
-                train_loss, val_loss = client.train_model_f_extractor_and_sensor(model_f_extractor=self.model_f_extractor, verbose=VERBOSE)
+                printplus(f"Training {index} / {len(selected_clients)}")
+                train_loss, val_loss = client.train_model_f_extractor_and_sensors(model_f_extractor=self.model_f_extractor)
 
                 client_id = map_clients_ids[str(client)]
 
@@ -174,9 +173,9 @@ class Server:
             self.score = 0
 
             for index, client in enumerate(self.clients, start=1):
-                print(f"{utils.log_timestamp_status()} Evaluating {index} / {len(self.clients)}")
+                printplus(f"Evaluating {index} / {len(self.clients)}")
 
-                eval_loss = client.eval_model_f_extractor_and_sensor(model_f_extractor=self.model_f_extractor, verbose=VERBOSE)
+                eval_loss = client.eval_model_f_extractor_and_sensor(model_f_extractor=self.model_f_extractor)
 
                 client_id = map_clients_ids[str(client)]
 
@@ -228,7 +227,7 @@ class Server:
 
             log.update(stats)
 
-            run.log(log)
+            run.printplus(log)
 
             #? Check stop conditions
             if stop_counter >= flad.FLAD_PATIENCE:

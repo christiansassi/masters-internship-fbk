@@ -1,5 +1,5 @@
-from constants import *
 import config
+from constants import *
 
 from os import makedirs
 

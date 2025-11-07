@@ -1,4 +1,6 @@
 import os
+from os import makedirs
+from os.path import join
 
 os.environ["WANDB_SILENT"] = "true"
 os.environ["WANDB_CONSOLE"] = "off"
@@ -139,3 +141,43 @@ def seed_torch(seed=1000):
     torch.backends.cudnn.deterministic = True
 
 seed_torch()
+
+import sys
+import traceback
+from datetime import datetime
+
+ROOT_LOGS = "logs"
+SESSION_LOGS = join(ROOT_LOGS, f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
+
+makedirs(ROOT_LOGS, exist_ok=True)
+
+_console = sys.__stdout__
+_log = open(SESSION_LOGS, "w+")
+
+sys.stdout = _log
+
+def printplus(msg: str, end: str = "\n", log_only: bool = False):
+
+    if VERBOSE != 1:
+        return
+
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", end=end)
+
+    if log_only == False:
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", end=end, file=_console)
+
+def exception_hook(exc_type, exc_value, exc_traceback):
+
+    tb = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+
+    _log.write(tb)
+    _log.flush()
+
+    _console.write(tb)
+    _console.flush()
+
+    sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+sys.excepthook = exception_hook
+
+os.system("cls" if os.name == "nt" else "clear")

@@ -1,7 +1,6 @@
 from config import *
 from constants import *
 from models import ModelFExtractor, ModelSensors, PredErrorModel
-import utils
 
 import torch
 import torch.nn as nn
@@ -134,12 +133,10 @@ class Client:
         self.mask[:, :, self.input_mask] = 1
         self.mask = self.mask.to(DEVICE)
 
-        self.log = lambda msg, end="\n", verbose=False: print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
-
     def __str__(self) -> str:
         return self.id
 
-    def train_model_f_extractor_and_sensor(self, model_f_extractor: ModelFExtractor, verbose: bool = False) -> tuple:
+    def train_model_f_extractor_and_sensors(self, model_f_extractor: ModelFExtractor, ) -> tuple:
 
         self.model_f_extractor.to(DEVICE)
 
@@ -154,9 +151,9 @@ class Client:
         best_model_f_extractor = None
         best_model_sensor = None
 
-        self.log(f"Steps before: {self.steps}", verbose=verbose)
-        self.log(f"Batch size before: {self.batch_size}", verbose=verbose)
-        self.log(f"Epochs before: {self.epochs}", verbose=verbose)
+        printplus(f"Steps before: {self.steps}", log_only=True)
+        printplus(f"Batch size before: {self.batch_size}", log_only=True)
+        printplus(f"Epochs before: {self.epochs}", log_only=True)
 
         steps = max(flad.MIN_STEPS, min(self.steps, flad.MAX_STEPS))
         batch_size = max(daics.BATCH_SIZE, min(len(self.train_input_indices) // steps, WIDE_DEEP_MAX_BATCH_SIZE))
@@ -165,9 +162,9 @@ class Client:
         self.steps = steps
         self.batch_size = batch_size
 
-        self.log(f"Steps after: {self.steps}", verbose=verbose)
-        self.log(f"Batch size after: {self.batch_size}", verbose=verbose)
-        self.log(f"Epochs after: {self.epochs}", verbose=verbose)
+        printplus(f"Steps after: {self.steps}", log_only=True)
+        printplus(f"Batch size after: {self.batch_size}", log_only=True)
+        printplus(f"Epochs after: {self.epochs}", log_only=True)
 
         # Calculate indices
         train_input_indices = self.train_input_indices[:self.steps * self.batch_size]
@@ -224,7 +221,7 @@ class Client:
 
                     loss = loss + tmp
 
-                    self.log(f"Training loss #{index}: {tmp}", verbose=verbose)
+                    printplus(f"Training loss #{index}: {tmp}", log_only=True)
 
 
                 # One SGD step
@@ -233,8 +230,8 @@ class Client:
 
                 train_loss = train_loss + loss.item()
 
-                # self.log(" " * 100, end="\r", verbose=verbose)
-                self.log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {self.steps} | Training loss {train_loss / step}", verbose=verbose)
+                printplus(" " * 100, end="\r")
+                printplus(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {self.steps} | Training loss {train_loss / step}")
 
             train_loss = train_loss / self.steps
 
@@ -284,12 +281,12 @@ class Client:
 
                         loss = loss + tmp
 
-                        self.log(f"Validation loss #{index}: {tmp}", verbose=verbose)
+                        printplus(f"Validation loss #{index}: {tmp}", log_only=True)
 
                     val_loss = val_loss + loss.item()
 
-                    # self.log(" " * 100, end="\r", verbose=verbose)
-                    self.log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss / step}", verbose=verbose)
+                    printplus(" " * 100, end="\r")
+                    printplus(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss / step}")
 
             val_loss = val_loss / steps
 
@@ -308,12 +305,12 @@ class Client:
         for model_sensor, best_model_sensor in zip(self.model_sensors, best_model_sensors):
             model_sensor.load_state_dict(deepcopy(best_model_sensor))
 
-        # self.log(" " * 100, end="\r", verbose=verbose)
-        self.log(f"Training loss: {min_train_loss} | Validation loss: {min_val_loss}", verbose=verbose)
+        printplus(" " * 100, end="\r")
+        printplus(f"Training loss: {min_train_loss} | Validation loss: {min_val_loss}")
         
         return -min_train_loss, -min_val_loss
 
-    def eval_model_f_extractor_and_sensor(self, model_f_extractor: ModelFExtractor, verbose: bool = False) -> float:
+    def eval_model_f_extractor_and_sensor(self, model_f_extractor: ModelFExtractor, ) -> float:
         
         self.model_f_extractor.to(DEVICE)
 
@@ -367,23 +364,23 @@ class Client:
 
                     loss = loss + tmp
 
-                    self.log(f"Evaluation loss #{index}: {tmp}", verbose=verbose)
+                    printplus(f"Evaluation loss #{index}: {tmp}", log_only=True)
 
                 eval_loss = eval_loss + loss.item()
 
-                # self.log(" " * 100, end="\r", verbose=verbose)
-                self.log(f"Step: {step} / {steps} | Evaluation loss: {eval_loss / step}", verbose=verbose)
+                printplus(" " * 100, end="\r")
+                printplus(f"Step: {step} / {steps} | Evaluation loss: {eval_loss / step}")
                 
         eval_loss = eval_loss / steps
 
         self.score = -eval_loss
 
-        # self.log(" " * 100, end="\r", verbose=verbose)
-        self.log(f"Evaluation loss: {eval_loss}", verbose=verbose)
+        printplus(" " * 100, end="\r")
+        printplus(f"Evaluation loss: {eval_loss}")
 
         return -eval_loss
 
-    def train_pred_error_model(self, verbose: bool = False):
+    def train_pred_error_model(self, ):
         
         self.model_f_extractor.to(DEVICE)
         
@@ -440,8 +437,8 @@ class Client:
 
                     all_predicted[index][train_output_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE, 0]] = loss.detach().cpu().numpy()[:, 0]
 
-                self.log(" " * 100, end="\r", verbose=verbose)
-                self.log(f"Calculating errors {step + 1} / {steps}", end="\r", verbose=verbose)
+                printplus(" " * 100, end="\r")
+                printplus(f"Calculating errors {step + 1} / {steps}", end="\r")
 
             return all_predicted
 
@@ -510,8 +507,8 @@ class Client:
                     loss.backward(retain_graph=True)
                     optimizer.step()
 
-                    self.log(" " * 100, end="\r", verbose=verbose)
-                    self.log(f"[{index + 1} / {len(self.model_sensors)}] Epoch: {epoch + 1} / {daics.THRESHOLD_EPOCHS} | Step: {step} / {steps} | Training loss: {train_loss / step}", end="\r", verbose=verbose)
+                    printplus(" " * 100, end="\r")
+                    printplus(f"[{index + 1} / {len(self.model_sensors)}] Epoch: {epoch + 1} / {daics.THRESHOLD_EPOCHS} | Step: {step} / {steps} | Training loss: {train_loss / step}", end="\r")
                 
                 train_loss = train_loss / steps
 
@@ -526,12 +523,12 @@ class Client:
         for pred_error_model, best_pred_error_model in zip(self.pred_error_models, best_pred_error_models):
             pred_error_model.load_state_dict(deepcopy(best_pred_error_model))
         
-        self.log(" " * 100, end="\r", verbose=verbose)
-        self.log(f"Training loss: {np.mean(losses)}", verbose=verbose)
+        printplus(" " * 100, end="\r")
+        printplus(f"Training loss: {np.mean(losses)}")
 
         return losses
 
-    def calculate_threshold_base(self, verbose: bool = False):
+    def calculate_threshold_base(self, ):
 
         self.model_f_extractor.to(DEVICE)
 
@@ -578,8 +575,8 @@ class Client:
                 
                     errors[index].append(scipy.signal.medfilt(loss.detach().cpu().numpy()[:, 0].flatten(), kernel_size=daics.MED_FILTER_LAG))
 
-                self.log(" " * 100, end="\r", verbose=verbose)
-                self.log(f"Calculating errors {step + 1} / {steps}", end="\r", verbose=verbose)
+                printplus(" " * 100, end="\r")
+                printplus(f"Calculating errors {step + 1} / {steps}", end="\r")
             
             return [item for loss in errors for item in loss]
 
@@ -596,9 +593,9 @@ class Client:
 
         return threshold_base
 
-    def test(self, verbose: bool = False):
+    def test(self):
         
-        self.calculate_threshold_base(verbose=verbose)
+        self.calculate_threshold_base()
 
         self.model_f_extractor.to(DEVICE)
 
@@ -801,8 +798,8 @@ class Client:
                         ftune_optimizer.step()
                         ftune_scheduler.step(loss)
 
-            self.log(" " * 100, end="\r", verbose=verbose)
-            self.log(f"Step {step + 1} / {steps}", end="\r", verbose=verbose)
+            printplus(" " * 100, end="\r")
+            printplus(f"Step {step + 1} / {steps}", end="\r")
 
         print("Number of human interventions: ", human_inter_counter)
         # end for enumerate(dl_test):                                            
@@ -838,9 +835,7 @@ class Client:
         for pred_error_model, loaded_pred_error_model in zip(self.pred_error_models, pred_error_models):
             pred_error_model.load_state_dict(deepcopy(loaded_pred_error_model.state_dict()) if isinstance(loaded_pred_error_model, PredErrorModel) else deepcopy(loaded_pred_error_model))
 
-def generate_non_iid_clients(verbose: bool = False) -> list[Client]:
-
-    log = lambda msg, end="\n", verbose=False: print(f"{utils.log_timestamp_status()} {msg}", end=end) if verbose else None
+def generate_non_iid_clients() -> list[Client]:
 
     truncate_windows = lambda x, y: (
         x[: (len(x) // daics.BATCH_SIZE) * daics.BATCH_SIZE],
@@ -855,7 +850,7 @@ def generate_non_iid_clients(verbose: bool = False) -> list[Client]:
     attack = hf["attack"]
 
     for index, key in enumerate(normal.keys(), start = 1):
-        log(f"Creating clients {index} / {len(normal)}", end="\r", verbose=verbose)
+        printplus(f"Creating clients {index} / {len(normal)}", end="\r")
 
         normal_data = normal[key]
         attack_data = attack[key]
@@ -919,7 +914,7 @@ def generate_non_iid_clients(verbose: bool = False) -> list[Client]:
 
     hf.close()
 
-    print(" "*50, end="\r")
-    log(f"Created {len(clients)} clients", verbose=verbose)
+    printplus(" "*50, end="\r")
+    printplus(f"Created {len(clients)} clients")
 
     return clients
