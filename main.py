@@ -85,7 +85,7 @@ if __name__ == "__main__":
             title=f"Training Loss"
         )
 
-        run.printplus({"threshold_network": bar_plot})
+        run.log({"threshold_network": bar_plot})
         run.finish()
 
     # Simulation

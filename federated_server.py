@@ -227,7 +227,7 @@ class Server:
 
             log.update(stats)
 
-            run.printplus(log)
+            run.log(log)
 
             #? Check stop conditions
             if stop_counter >= flad.FLAD_PATIENCE:
