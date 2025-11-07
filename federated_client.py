@@ -154,12 +154,20 @@ class Client:
         best_model_f_extractor = None
         best_model_sensor = None
 
+        self.log(f"Steps before: {self.steps}", verbose=verbose)
+        self.log(f"Batch size before: {self.batch_size}", verbose=verbose)
+        self.log(f"Epochs before: {self.epochs}", verbose=verbose)
+
         steps = max(flad.MIN_STEPS, min(self.steps, flad.MAX_STEPS))
         batch_size = max(daics.BATCH_SIZE, min(len(self.train_input_indices) // steps, WIDE_DEEP_MAX_BATCH_SIZE))
         steps = max(flad.MIN_STEPS, min(len(self.train_input_indices) // batch_size, flad.MAX_STEPS))
 
         self.steps = steps
         self.batch_size = batch_size
+
+        self.log(f"Steps after: {self.steps}", verbose=verbose)
+        self.log(f"Batch size after: {self.batch_size}", verbose=verbose)
+        self.log(f"Epochs after: {self.epochs}", verbose=verbose)
 
         # Calculate indices
         train_input_indices = self.train_input_indices[:self.steps * self.batch_size]
@@ -199,7 +207,7 @@ class Client:
                 # Forward pass through the sensor head
                 loss = 0
 
-                for model_sensor, output_mask in zip(self.model_sensors, self.output_mask):
+                for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask), start=1):
                     
                     # Output
                     df_out = self.df_train[train_output_indices[batch_index * self.batch_size: batch_index * self.batch_size + self.batch_size].flatten()][:, output_mask]
@@ -212,7 +220,12 @@ class Client:
                     y = model_sensor(x)
 
                     # Compute loss
-                    loss = loss + self.criterion(y, w_out)
+                    tmp = self.criterion(y, w_out)
+
+                    loss = loss + tmp
+
+                    self.log(f"Training loss #{index}: {tmp}", verbose=verbose)
+
 
                 # One SGD step
                 loss.backward()
@@ -220,8 +233,8 @@ class Client:
 
                 train_loss = train_loss + loss.item()
 
-                self.log(" " * 100, end="\r", verbose=verbose)
-                self.log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {self.steps} | Training loss {train_loss / step}", end="\r", verbose=verbose)
+                # self.log(" " * 100, end="\r", verbose=verbose)
+                self.log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {self.steps} | Training loss {train_loss / step}", verbose=verbose)
 
             train_loss = train_loss / self.steps
 
@@ -256,7 +269,7 @@ class Client:
                     # Forward pass through the sensor head
                     loss = 0
 
-                    for model_sensor, output_mask in zip(self.model_sensors, self.output_mask):
+                    for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask), start=1):
 
                         # Output
                         df_out = self.df_val[self.val_output_indices[batch_index * daics.BATCH_SIZE: batch_index * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()][:, output_mask]
@@ -267,12 +280,16 @@ class Client:
                         y = model_sensor(x)
 
                         # Compute loss
-                        loss = loss + self.criterion(y, w_out)
+                        tmp = self.criterion(y, w_out)
+
+                        loss = loss + tmp
+
+                        self.log(f"Validation loss #{index}: {tmp}", verbose=verbose)
 
                     val_loss = val_loss + loss.item()
 
-                    self.log(" " * 100, end="\r", verbose=verbose)
-                    self.log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss / step}", end="\r", verbose=verbose)
+                    # self.log(" " * 100, end="\r", verbose=verbose)
+                    self.log(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss / step}", verbose=verbose)
 
             val_loss = val_loss / steps
 
@@ -291,7 +308,7 @@ class Client:
         for model_sensor, best_model_sensor in zip(self.model_sensors, best_model_sensors):
             model_sensor.load_state_dict(deepcopy(best_model_sensor))
 
-        self.log(" " * 100, end="\r", verbose=verbose)
+        # self.log(" " * 100, end="\r", verbose=verbose)
         self.log(f"Training loss: {min_train_loss} | Validation loss: {min_val_loss}", verbose=verbose)
         
         return -min_train_loss, -min_val_loss
@@ -334,7 +351,7 @@ class Client:
                 # Forward pass through the sensor head
                 loss = 0
 
-                for model_sensor, output_mask in zip(self.model_sensors, self.output_mask):
+                for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask), start=1):
 
                     # Output
                     df_out = self.df_test[self.test_output_indices[batch_index * daics.BATCH_SIZE: batch_index * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()][:, output_mask]
@@ -346,18 +363,22 @@ class Client:
                     y = model_sensor(x)
 
                     # Compute loss
-                    loss = loss + self.criterion(y, w_out)
+                    tmp = self.criterion(y, w_out)
+
+                    loss = loss + tmp
+
+                    self.log(f"Evaluation loss #{index}: {tmp}", verbose=verbose)
 
                 eval_loss = eval_loss + loss.item()
 
-                self.log(" " * 100, end="\r", verbose=verbose)
-                self.log(f"Step: {step} / {steps} | Evaluation loss: {eval_loss / step}", end="\r", verbose=verbose)
+                # self.log(" " * 100, end="\r", verbose=verbose)
+                self.log(f"Step: {step} / {steps} | Evaluation loss: {eval_loss / step}", verbose=verbose)
                 
         eval_loss = eval_loss / steps
 
         self.score = -eval_loss
 
-        self.log(" " * 100, end="\r", verbose=verbose)
+        # self.log(" " * 100, end="\r", verbose=verbose)
         self.log(f"Evaluation loss: {eval_loss}", verbose=verbose)
 
         return -eval_loss

@@ -15,7 +15,7 @@ import torch
 
 class Server:
 
-    def __init__(self, clients: list[Client], model_f_extractor: ModelFExtractor = None):
+    def __init__(self, clients: list[Client]):
         
         self.clients = clients
 
@@ -24,40 +24,9 @@ class Server:
             window_size_out=daics.WINDOW_PRESENT, 
             n_devices_in=len(GLOBAL_INPUTS), 
             kernel_size=daics.KERNEL_SIZE
-        ) if model_f_extractor is None else deepcopy(model_f_extractor.state_dict())
+        )
 
         self.score = float("inf")
-
-    def select_clients(self) -> list[Client]:
-
-        selected_clients = []
-
-        min_score = float("inf")
-        max_score = float("-inf")
-
-        for client in self.clients:
-
-            if client.score > self.score:
-                continue
-
-            min_score = min(min_score, client.score)
-            max_score = max(max_score, client.score)
-
-            selected_clients.append(client)
-        
-        for index, client in enumerate(selected_clients):
-
-            if max_score != min_score:
-                scaling_factor = (max_score - client.score) / (max_score - min_score)
-            else:
-                scaling_factor = 0
-
-            client.epochs = int(flad.MIN_EPOCHS + (flad.MAX_EPOCHS - flad.MIN_EPOCHS) * scaling_factor)
-            client.steps = int(flad.MIN_STEPS + (flad.MAX_STEPS - flad.MIN_STEPS) * scaling_factor)
-
-            selected_clients[index] = client
-        
-        return selected_clients
     
     def select_clients(self) -> list[Client]:
 
@@ -84,7 +53,7 @@ class Server:
 
             client.epochs = max(flad.MIN_EPOCHS, int(flad.MIN_EPOCHS + (flad.MAX_EPOCHS - flad.MIN_EPOCHS) * scaling_factor))
             client.steps  = max(flad.MIN_STEPS, int(flad.MIN_STEPS  + (flad.MAX_STEPS  - flad.MIN_STEPS ) * scaling_factor))
-
+            
         return selected_clients
 
 
@@ -187,7 +156,7 @@ class Server:
             for client in self.clients:
                 torch.save({
                     "model_f_extractor": deepcopy(client.model_f_extractor.state_dict()),
-                    "model_sensor": [deepcopy(model_sensor.state_dict()) for model_sensor in client.model_sensors]
+                    "model_sensors": [deepcopy(model_sensor.state_dict()) for model_sensor in client.model_sensors]
                 }, join(round_path, f"{str(client.id)}.pt"))
             #!###################
 
