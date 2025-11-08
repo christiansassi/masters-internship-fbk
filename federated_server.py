@@ -8,8 +8,6 @@ from os import makedirs
 from time import time
 from datetime import datetime
 
-import logging
-
 import torch
 
 class Server:
@@ -159,10 +157,10 @@ class Server:
                 }, join(round_path, f"{str(client.id)}.pt"))
             #!###################
 
-            logging.info(f"Trained {len(selected_clients)} clients")
+            printplus(f"Trained {len(selected_clients)} clients")
 
             #? Model aggregations
-            logging.info(f"Aggregating models")
+            printplus(f"Aggregating models")
             start = time()
             self.model_f_extractor = self.aggregate_networks(clients=self.clients)
             elapsed = elapsed + max(0, time() - start)
@@ -190,11 +188,11 @@ class Server:
 
             elapsed = elapsed + max(0, time() - start)
 
-            logging.info(f"Evaluated {len(self.clients)} clients")
+            printplus(f"Evaluated {len(self.clients)} clients")
 
             #? Check for improvements
-            logging.info(f"Current score: {self.score}")
-            logging.info(f"Best score: {best_score}")
+            printplus(f"Current score: {self.score}")
+            printplus(f"Best score: {best_score}")
 
             if self.score > best_score:
                 stop_counter = 0
@@ -214,7 +212,7 @@ class Server:
             }, join(round_path, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"))
             #!###################
 
-            logging.info(f"Patience {stop_counter} / {flad.FLAD_PATIENCE}")
+            printplus(f"Patience {stop_counter} / {flad.FLAD_PATIENCE}")
 
             log = {
                 "round": round_num,
