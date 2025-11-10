@@ -469,34 +469,34 @@ class Client:
             all_predicted = np.concatenate((np.trim_zeros(all_predicted_val[index]), np.trim_zeros(all_predicted_test[index])))
             all_predicted = scipy.signal.medfilt(all_predicted, kernel_size=constants.daics.MED_FILTER_LAG)
 
-            input_indices = (np.arange(constants.daicsSAMPLING_START, len(all_predicted), constants.daicsVAL_STEP) - constants.daicsHORIZON - constants.daicsWINDOW_PRESENT)[:, None] - np.arange(1, constants.daicsWINDOW_PAST + 1)
+            input_indices = (np.arange(constants.daics.SAMPLING_START, len(all_predicted), constants.daics.VAL_STEP) - constants.daics.HORIZON - constants.daics.WINDOW_PRESENT)[:, None] - np.arange(1, constants.daics.WINDOW_PAST + 1)
             input_indices = np.sort(input_indices)
-            input_indices = input_indices[: (len(input_indices) // constants.daicsBATCH_SIZE) * constants.daicsBATCH_SIZE, :]
+            input_indices = input_indices[: (len(input_indices) // constants.daics.BATCH_SIZE) * constants.daics.BATCH_SIZE, :]
 
-            output_indices = np.arange(constants.daicsSAMPLING_START, len(all_predicted), constants.daicsVAL_STEP)[:, None] - np.arange(1, constants.daicsWINDOW_PRESENT + 1)
+            output_indices = np.arange(constants.daics.SAMPLING_START, len(all_predicted), constants.daics.VAL_STEP)[:, None] - np.arange(1, constants.daics.WINDOW_PRESENT + 1)
             output_indices = np.sort(output_indices)
-            output_indices = output_indices[: (len(output_indices) // constants.daicsBATCH_SIZE) * constants.daicsBATCH_SIZE, :]
+            output_indices = output_indices[: (len(output_indices) // constants.daics.BATCH_SIZE) * constants.daics.BATCH_SIZE, :]
 
             pred_error_model.to(config.DEVICE)
         
-            optimizer = torch.optim.SGD(pred_error_model.parameters(), lr=constants.daicsLEARNING_RATE)
-            # optimizer = torch.optim.Adam(pred_error_model.parameters(), lr=constants.daicsLEARNING_RATE, weight_decay=constants.daicsWEIGHT_DECAY)
-            # optimizer = torch.optim.AdamW(pred_error_model.parameters(), lr=constants.daicsLEARNING_RATE, betas=(0.9, 0.9), weight_decay=constants.daicsWEIGHT_DECAY)
+            optimizer = torch.optim.SGD(pred_error_model.parameters(), lr=constants.daics.LEARNING_RATE)
+            # optimizer = torch.optim.Adam(pred_error_model.parameters(), lr=constants.daics.LEARNING_RATE, weight_decay=constants.daics.WEIGHT_DECAY)
+            # optimizer = torch.optim.AdamW(pred_error_model.parameters(), lr=constants.daics.LEARNING_RATE, betas=(0.9, 0.9), weight_decay=constants.daics.WEIGHT_DECAY)
 
             min_train_loss = float("inf")
 
-            for epoch in range(constants.daicsTHRESHOLD_EPOCHS):
+            for epoch in range(constants.daics.THRESHOLD_EPOCHS):
                 
                 pred_error_model.train()
 
                 train_loss = 0
 
-                steps = len(input_indices) // constants.daicsBATCH_SIZE
+                steps = len(input_indices) // constants.daics.BATCH_SIZE
 
                 for step, batch_index in enumerate(np.random.permutation(range(0, steps)), start=1):
 
-                    df_in = all_predicted[input_indices[batch_index * constants.daicsBATCH_SIZE: batch_index * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE]]
-                    df_out = all_predicted[output_indices[batch_index * constants.daicsBATCH_SIZE: batch_index * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE]]
+                    df_in = all_predicted[input_indices[batch_index * constants.daics.BATCH_SIZE: batch_index * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE]]
+                    df_out = all_predicted[output_indices[batch_index * constants.daics.BATCH_SIZE: batch_index * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE]]
 
                     # Input and output
                     w_in = torch.from_numpy(df_in[:, :, None]).float().to(config.DEVICE)
@@ -524,7 +524,7 @@ class Client:
                     optimizer.step()
 
                     config.printplus(" " * 100, end="\r")
-                    config.printplus(f"[{index + 1} / {len(self.model_sensors)}] Epoch: {epoch + 1} / {constants.daicsTHRESHOLD_EPOCHS} | Step: {step} / {steps} | Training loss: {train_loss.item() / step}", end="\r")
+                    config.printplus(f"[{index + 1} / {len(self.model_sensors)}] Epoch: {epoch + 1} / {constants.daics.THRESHOLD_EPOCHS} | Step: {step} / {steps} | Training loss: {train_loss.item() / step}", end="\r")
                 
                 train_loss = train_loss.item() / steps
 
@@ -559,17 +559,17 @@ class Client:
 
             errors = [[] for _ in range(len(self.model_sensors))]
 
-            steps = len(input_indices) // constants.daicsBATCH_SIZE
+            steps = len(input_indices) // constants.daics.BATCH_SIZE
 
             for step in range(0, steps):
                 
                 # Input
-                df_in = df[input_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()]
+                df_in = df[input_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()]
 
                 w_in = np.zeros((len(df_in), len(constants.GLOBAL_INPUTS)), dtype=np.float32)
                 w_in[:, self.input_mask] = df_in
 
-                w_in = w_in.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PAST, -1)
+                w_in = w_in.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PAST, -1)
                 w_in = torch.from_numpy(w_in).float().to(config.DEVICE)
 
                 # Forward pass through the feature extractor
@@ -579,9 +579,9 @@ class Client:
                 for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask)):
                     
                     # Output
-                    df_out = df[output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()][:, output_mask]
+                    df_out = df[output_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()][:, output_mask]
 
-                    w_out = df_out.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PRESENT, -1)
+                    w_out = df_out.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PRESENT, -1)
                     w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
                     y = model_sensor(x)
@@ -589,7 +589,7 @@ class Client:
                     # Compute loss
                     loss = torch.mean(criterion(y, w_out), dim=2)
                 
-                    errors[index].append(scipy.signal.medfilt(loss.detach().cpu().numpy()[:, 0].flatten(), kernel_size=constants.daicsMED_FILTER_LAG))
+                    errors[index].append(scipy.signal.medfilt(loss.detach().cpu().numpy()[:, 0].flatten(), kernel_size=constants.daics.MED_FILTER_LAG))
 
                 config.printplus(" " * 100, end="\r")
                 config.printplus(f"Calculating errors {step + 1} / {steps}", end="\r")
@@ -632,7 +632,7 @@ class Client:
         pred_error_optimizer = []
 
         for model_sensor, pred_error_model in zip(self.model_sensors, self.pred_error_models):
-            pred_error_optimizer.append(torch.optim.SGD(pred_error_model.parameters(), lr=constants.daicsLEARNING_RATE))
+            pred_error_optimizer.append(torch.optim.SGD(pred_error_model.parameters(), lr=constants.daics.LEARNING_RATE))
 
             for name, param in model_sensor.named_children():
                 for p in param.parameters():
@@ -664,7 +664,7 @@ class Client:
         human_inter_counter = 0
         actuation_alarm = 0
 
-        steps = len(self.real_output_indices) // constants.daicsBATCH_SIZE
+        steps = len(self.real_output_indices) // constants.daics.BATCH_SIZE
 
         criterion1 = nn.MSELoss(reduction="none") # test_loss_function
         criterion2 = nn.MSELoss() # threshold_loss_function
@@ -672,16 +672,16 @@ class Client:
 
         for step in range(0, steps):
 
-            apply_thr_start = self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE][0, 0]
-            apply_thr_end = self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE][-1, 0]
+            apply_thr_start = self.real_output_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE][0, 0]
+            apply_thr_end = self.real_output_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE][-1, 0]
         
             # Input
-            df_in = self.df_real[self.real_input_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()]
+            df_in = self.df_real[self.real_input_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()]
 
             w_in = np.zeros((len(df_in), len(constants.GLOBAL_INPUTS)), dtype=np.float32)
             w_in[:, self.input_mask] = df_in
 
-            w_in = w_in.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PAST, -1)
+            w_in = w_in.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PAST, -1)
             w_in = torch.from_numpy(w_in).float().to(config.DEVICE)
 
             # Forward pass through the feature extractor
@@ -689,7 +689,7 @@ class Client:
         
             set_database_actuators = set(map(tuple, database_actuators))
 
-            window_t_actuator = self.df_real[np.unique(self.real_output_indices[step * constants.daicsBATCH_SIZE:  step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten())][:, actuators][:constants.daicsBATCH_SIZE, :]
+            window_t_actuator = self.df_real[np.unique(self.real_output_indices[step * constants.daics.BATCH_SIZE:  step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten())][:, actuators][:constants.daics.BATCH_SIZE, :]
 
             tmp = [(set(map(tuple, np.expand_dims(x_window_t_actuator, axis=0))) & set_database_actuators) == set() for  x_window_t_actuator in window_t_actuator]
 
@@ -700,22 +700,22 @@ class Client:
             else:
                 actuation_alarm = 0
             
-            idx_threshold = (np.arange(apply_thr_start, apply_thr_end + 1) - constants.daicsHORIZON)[:, None] - np.arange(1, constants.daicsWINDOW_PAST + 1)
+            idx_threshold = (np.arange(apply_thr_start, apply_thr_end + 1) - constants.daics.HORIZON)[:, None] - np.arange(1, constants.daics.WINDOW_PAST + 1)
 
             for index, (model_sensor, pred_error_model, output_mask) in enumerate(zip(self.model_sensors, self.pred_error_models, self.output_mask)):
                     
                 # Output
-                df_out = self.df_real[self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()][:, output_mask]
+                df_out = self.df_real[self.real_output_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()][:, output_mask]
 
-                w_out = df_out.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PRESENT, -1)
+                w_out = df_out.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PRESENT, -1)
                 w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
                 y = model_sensor(x)
 
                 pred_error_sen = torch.mean(criterion1(y, w_out), dim=2)
 
-                all_predicted_sen[index][self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE, 0]] = pred_error_sen.detach().cpu().numpy()[:, 0]
-                all_predicted_sen[index][apply_thr_start - constants.daicsW_ANOMALY * 2: apply_thr_end + 1] = scipy.signal.medfilt(all_predicted_sen[index][apply_thr_start - constants.daicsW_ANOMALY * 2: apply_thr_end + 1], kernel_size=constants.daicsMED_FILTER_LAG)
+                all_predicted_sen[index][self.real_output_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE, 0]] = pred_error_sen.detach().cpu().numpy()[:, 0]
+                all_predicted_sen[index][apply_thr_start - constants.daics.W_ANOMALY * 2: apply_thr_end + 1] = scipy.signal.medfilt(all_predicted_sen[index][apply_thr_start - constants.daics.W_ANOMALY * 2: apply_thr_end + 1], kernel_size=constants.daics.MED_FILTER_LAG)
 
                 threshold_wt_1 = torch.from_numpy(all_predicted_sen[index][idx_threshold][:, :, None]).float().to(config.DEVICE)
 
@@ -747,11 +747,11 @@ class Client:
 
                 thresholds_sen[index][apply_thr_start: apply_thr_end + 1] = np.squeeze(threshold)
 
-                idx_win_thr = np.arange(apply_thr_start, apply_thr_end + 1)[:, None] - np.arange(constants.daicsW_ANOMALY)
+                idx_win_thr = np.arange(apply_thr_start, apply_thr_end + 1)[:, None] - np.arange(constants.daics.W_ANOMALY)
 
                 all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] = np.all(all_predicted_sen[index][idx_win_thr] > threshold, 1)
 
-            if np.any(all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.count_nonzero(all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)]) <= constants.daicsW_GRACE:
+            if np.any(all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.count_nonzero(all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)]) <= constants.daics.W_GRACE:
 
                 database_actuators = np.concatenate((database_actuators, window_t_actuator), axis=0)
                 database_actuators = np.unique(database_actuators, axis=0)
@@ -767,18 +767,18 @@ class Client:
         
             for index, (model_sensor, pred_error_model, output_mask) in enumerate(zip(self.model_sensors, self.pred_error_models, self.output_mask)):
 
-                if np.any(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.count_nonzero(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)]) <= constants.daicsW_GRACE:
+                if np.any(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.count_nonzero(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)]) <= constants.daics.W_GRACE:
                     
-                    df_out = self.df_real[self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()][:, output_mask]
+                    df_out = self.df_real[self.real_output_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()][:, output_mask]
 
-                    w_out = df_out.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PRESENT, -1)
+                    w_out = df_out.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PRESENT, -1)
                     w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
                     # Prepare the optimizer
-                    ftune_optimizer = torch.optim.SGD(model_sensor.parameters(), lr=constants.daicsLEARNING_RATE, momentum=0.9, dampening=0.9, weight_decay=0.001)
+                    ftune_optimizer = torch.optim.SGD(model_sensor.parameters(), lr=constants.daics.LEARNING_RATE, momentum=0.9, dampening=0.9, weight_decay=0.001)
                     ftune_scheduler = ReduceLROnPlateau(ftune_optimizer)
                     # Fine-tune the output section
-                    for epoch in range(constants.daicsT_EPOCHS):
+                    for epoch in range(constants.daics.T_EPOCHS):
                         model_sensor.zero_grad()
                         f_extracted = self.model_f_extractor(w_in[:-4].float().to(config.DEVICE))
                         y_t_sen = model_sensor(f_extracted)
@@ -792,19 +792,19 @@ class Client:
 
                 if np.any(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.all(all_labels_threshold[np.arange(apply_thr_start, apply_thr_end + 1)] == 0):
                     
-                    df_out = self.df_real[self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()][:, output_mask]
+                    df_out = self.df_real[self.real_output_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()][:, output_mask]
 
-                    w_out = df_out.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PRESENT, -1)
+                    w_out = df_out.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PRESENT, -1)
                     w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
                     # Increment the human intervention counter
                     human_inter_counter += 1
                     # Flag the indices of human intervention for debugging purposes
                     human_idx_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] = 1
-                    ftune_optimizer = torch.optim.SGD(model_sensor.parameters(), lr=constants.daicsLEARNING_RATE, momentum=constants.daicsMOMENTUM, dampening=0.9, weight_decay=0.001)
+                    ftune_optimizer = torch.optim.SGD(model_sensor.parameters(), lr=constants.daics.LEARNING_RATE, momentum=constants.daics.MOMENTUM, dampening=0.9, weight_decay=0.001)
                     ftune_scheduler = ReduceLROnPlateau(ftune_optimizer)
                     # Fine-tune the output section
-                    for epoch in range(constants.daicsT_EPOCHS):
+                    for epoch in range(constants.daics.T_EPOCHS):
                         model_sensor.zero_grad()
                         w_t_1 = w_in.detach().clone()
                         f_extracted = self.model_f_extractor(w_t_1[:-4].float().to(config.DEVICE))
@@ -854,8 +854,8 @@ class Client:
 def generate_non_iid_clients() -> list[Client]:
 
     truncate_windows = lambda x, y: (
-        x[: (len(x) // constants.daicsBATCH_SIZE) * constants.daicsBATCH_SIZE],
-        y[: (len(y) // constants.daicsBATCH_SIZE) * constants.daicsBATCH_SIZE]
+        x[: (len(x) // constants.daics.BATCH_SIZE) * constants.daics.BATCH_SIZE],
+        y[: (len(y) // constants.daics.BATCH_SIZE) * constants.daics.BATCH_SIZE]
     )
 
     clients: list[Client] = []
