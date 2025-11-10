@@ -117,7 +117,9 @@ class Client:
             window_size_out=daics.WINDOW_PRESENT
         ) for _ in range(len(self.model_sensors))]
 
-        self.optimizer = torch.optim.SGD(list(self.model_f_extractor.parameters()) + model_sensors_params, lr=daics.LEARNING_RATE, momentum=daics.MOMENTUM)
+        # self.optimizer = torch.optim.SGD(list(self.model_f_extractor.parameters()) + model_sensors_params, lr=daics.LEARNING_RATE, momentum=daics.MOMENTUM)
+        # self.optimizer = torch.optim.Adam(list(self.model_f_extractor.parameters()) + model_sensors_params, lr=daics.LEARNING_RATE, weight_decay=daics.WEIGHT_DECAY)
+        self.optimizer = torch.optim.AdamW(list(self.model_f_extractor.parameters()) + model_sensors_params, lr=daics.LEARNING_RATE, betas=(0.9, 0.9), weight_decay=daics.WEIGHT_DECAY)
         self.scheduler = ReduceLROnPlateau(self.optimizer, patience=daics.DAICS_PATIENCE)
         self.criterion = nn.MSELoss()
 
@@ -466,7 +468,9 @@ class Client:
 
             pred_error_model.to(DEVICE)
         
-            optimizer = torch.optim.SGD(pred_error_model.parameters(), lr=daics.LEARNING_RATE)
+            # optimizer = torch.optim.SGD(pred_error_model.parameters(), lr=daics.LEARNING_RATE)
+            # optimizer = torch.optim.Adam(pred_error_model.parameters(), lr=daics.LEARNING_RATE, weight_decay=daics.WEIGHT_DECAY)
+            optimizer = torch.optim.AdamW(pred_error_model.parameters(), lr=daics.LEARNING_RATE, betas=(0.9, 0.9), weight_decay=daics.WEIGHT_DECAY)
 
             min_train_loss = float("inf")
 

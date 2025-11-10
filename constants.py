@@ -129,6 +129,8 @@ class DAICS:
 
     MED_FILTER_LAG: int = 59
 
+    WEIGHT_DECAY: float = 0.001
+
 daics = DAICS()
 
 #? === Constants from FLAD ===
