@@ -111,7 +111,8 @@ class Server:
             "epochs": None,
             "steps": None,
             "batch_size": None,
-            "selected": None
+            "selected": None,
+            "time": None
         } for client in map_clients_ids.values()}
 
         round_num = 0
@@ -119,6 +120,11 @@ class Server:
 
         best_score = float("-inf")
         best_model_f_extractor = deepcopy(self.model_f_extractor)
+
+        select_clients_time = 0
+        update_clients_time = 0
+        aggregate_network_time = 0
+        evaluate_clients_time = 0
 
         while True:
 
@@ -133,26 +139,33 @@ class Server:
             for client in self.clients:
                 client_id = map_clients_ids[str(client)]
                 stats[client_id]["selected"] = 0
+                stats[client_id]["time"] = 0
 
             #? Select clients
             start = time()
             selected_clients = self.select_clients()
-            elapsed = max(0, time() - start)
+            select_clients_time = max(0, time() - start)
+            elapsed = select_clients_time
 
             #? Update eclients
             start = time()
 
             for index, client in enumerate(selected_clients, start=1):
                 config.printplus(f"Training {index} / {len(selected_clients)}")
+
+                client_start = time()
                 train_loss, val_loss = client.train_model_f_extractor_and_sensors(model_f_extractor=self.model_f_extractor)
+                client_end = time()
 
                 client_id = map_clients_ids[str(client)]
 
                 stats[client_id]["train_loss"] = train_loss
                 stats[client_id]["val_loss"] = val_loss
                 stats[client_id]["selected"] = 1
+                stats[client_id]["time"] = client_end - client_start
 
-            elapsed = elapsed + max(0, time() - start)
+            update_clients_time = max(0, time() - start)
+            elapsed = elapsed + update_clients_time
 
             #! CHECKPOINT #######
             for client in self.clients:
@@ -167,8 +180,11 @@ class Server:
             #? Model aggregations
             config.printplus(f"Aggregating models")
             start = time()
+
             self.model_f_extractor = self.aggregate_networks(clients=self.clients)
-            elapsed = elapsed + max(0, time() - start)
+
+            aggregate_network_time = max(0, time() - start)
+            elapsed = elapsed + aggregate_network_time
 
             #? Evaluate clients
             start = time()
@@ -178,7 +194,9 @@ class Server:
             for index, client in enumerate(self.clients, start=1):
                 config.printplus(f"Evaluating {index} / {len(self.clients)}")
 
+                client_start = time()
                 eval_loss = client.eval_model_f_extractor_and_sensor(model_f_extractor=self.model_f_extractor)
+                client_end = time()
 
                 client_id = map_clients_ids[str(client)]
 
@@ -186,12 +204,14 @@ class Server:
                 stats[client_id]["epochs"] = client.epochs
                 stats[client_id]["steps"] = client.steps
                 stats[client_id]["batch_size"] = client.batch_size
+                stats[client_id]["time"] = client_end - client_start
 
                 self.score = self.score + eval_loss
 
             self.score = self.score / len(self.clients)
-
-            elapsed = elapsed + max(0, time() - start)
+            
+            evaluate_clients_time = max(0, time() - start)
+            elapsed = elapsed + evaluate_clients_time
 
             config.printplus(f"Evaluated {len(self.clients)} clients")
 
@@ -226,6 +246,10 @@ class Server:
                 "best": best_score,
                 "stop_counter": stop_counter,
                 "time_per_round": elapsed,
+                "select_clients_time": select_clients_time,
+                "update_clients_time": update_clients_time,
+                "aggregate_network_time": aggregate_network_time,
+                "evaluate_clients_time": evaluate_clients_time
             }
 
             log.update(stats)
