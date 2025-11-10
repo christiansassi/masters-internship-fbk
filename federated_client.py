@@ -364,7 +364,7 @@ class Client:
                 for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask), start=1):
 
                     # Output
-                    df_out = self.df_test[self.test_output_indices[batch_index * config.constants.daics.BATCH_SIZE: batch_index * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()][:, output_mask]
+                    df_out = self.df_test[self.test_output_indices[batch_index * constants.daics.daics.BATCH_SIZE: batch_index * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()][:, output_mask]
 
                     # Output
                     w_out = df_out.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PRESENT, -1)
