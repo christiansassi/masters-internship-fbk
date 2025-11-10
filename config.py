@@ -19,8 +19,8 @@ import uuid
 
 from types import SimpleNamespace
 
-WIDE_DEEP_NETWORK: bool = False
-THRESHOLD_NETWORK: bool = True
+WIDE_DEEP_NETWORK: bool = True
+THRESHOLD_NETWORK: bool = False
 SIMULATION: bool = False
 
 GPU: bool = True

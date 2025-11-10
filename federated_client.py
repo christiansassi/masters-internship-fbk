@@ -227,7 +227,7 @@ class Client:
 
                 #! SAFETY CHECK FOR NON-FINITE LOSS
                 if not torch.isfinite(loss):
-                    config.printplus(f"Skipping batch due to invalid loss ({loss.item()})", log_only=True)
+                    config.printplus(f"Skipping batch due to invalid loss ({loss.item()})")
                     continue
 
                 # One step
