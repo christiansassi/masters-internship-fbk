@@ -1,12 +1,17 @@
-from config import *
-from constants import *
-from federated_client import *
-from models import *
+import config
+import constants
+
+from federated_client import Client
+
+from models import ModelFExtractor
 
 from os import makedirs
+from os.path import join
 
 from time import time
 from datetime import datetime
+
+from copy import deepcopy
 
 import torch
 
@@ -17,10 +22,10 @@ class Server:
         self.clients = clients
 
         self.model_f_extractor = ModelFExtractor(
-            window_size_in=daics.WINDOW_PAST, 
-            window_size_out=daics.WINDOW_PRESENT, 
-            n_devices_in=len(GLOBAL_INPUTS), 
-            kernel_size=daics.KERNEL_SIZE
+            window_size_in=constants.daics.WINDOW_PAST, 
+            window_size_out=constants.daics.WINDOW_PRESENT, 
+            n_devices_in=len(constants.GLOBAL_INPUTS), 
+            kernel_size=constants.daics.KERNEL_SIZE
         )
 
         self.score = float("inf")
@@ -48,8 +53,8 @@ class Server:
             else:
                 scaling_factor = 1
 
-            client.epochs = max(flad.MIN_EPOCHS, int(flad.MIN_EPOCHS + (flad.MAX_EPOCHS - flad.MIN_EPOCHS) * scaling_factor))
-            client.steps  = max(flad.MIN_STEPS, int(flad.MIN_STEPS  + (flad.MAX_STEPS  - flad.MIN_STEPS ) * scaling_factor))
+            client.epochs = max(constants.flad.MIN_EPOCHS, int(constants.flad.MIN_EPOCHS + (constants.flad.MAX_EPOCHS - constants.flad.MIN_EPOCHS) * scaling_factor))
+            client.steps  = max(constants.flad.MIN_STEPS, int(constants.flad.MIN_STEPS  + (constants.flad.MAX_STEPS  - constants.flad.MIN_STEPS ) * scaling_factor))
             
         return selected_clients
 
@@ -58,7 +63,7 @@ class Server:
         
         # Deepcopy global model structure from the first client
         global_model = deepcopy(self.model_f_extractor)
-        global_model.to(DEVICE)
+        global_model.to(config.DEVICE)
 
         global_state = deepcopy(global_model.state_dict())
 
@@ -85,17 +90,17 @@ class Server:
     
     def federated_learning(self):
         
-        makedirs(name=WIDE_DEEP_NETWORK, exist_ok=True)
+        makedirs(name=constants.WIDE_DEEP_NETWORK, exist_ok=True)
 
         session_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-        session_path = join(WIDE_DEEP_NETWORK, session_id)
+        session_path = join(constants.WIDE_DEEP_NETWORK, session_id)
         makedirs(name=session_path, exist_ok=True)
 
-        checkpoint_path = join(session_path, CHECKPOINTS)
+        checkpoint_path = join(session_path, constants.CHECKPOINTS)
         makedirs(name=checkpoint_path)
 
-        run = WandbConfig.init_run(name=f"[{'GPU' if GPU else 'CPU'}] Wide Deep Network", tags=["pytorch", "wide-deep", "sensors_and_actuators"])
+        run = config.WandbConfig.init_run(name=f"[{'GPU' if config.GPU else 'CPU'}] Wide Deep Network", tags=["pytorch", "wide-deep", "sensors_and_actuators"])
 
         map_clients_ids = {str(client): f"{'-'.join(sorted(client.inputs))}" for client in self.clients}
 
@@ -122,8 +127,8 @@ class Server:
             round_path = join(checkpoint_path, f"round_{round_num}")
             makedirs(name=round_path, exist_ok=True)
 
-            printplus("")
-            printplus(f"---------- Round {round_num} ----------")
+            config.printplus("")
+            config.printplus(f"---------- Round {round_num} ----------")
             
             for client in self.clients:
                 client_id = map_clients_ids[str(client)]
@@ -138,7 +143,7 @@ class Server:
             start = time()
 
             for index, client in enumerate(selected_clients, start=1):
-                printplus(f"Training {index} / {len(selected_clients)}")
+                config.printplus(f"Training {index} / {len(selected_clients)}")
                 train_loss, val_loss = client.train_model_f_extractor_and_sensors(model_f_extractor=self.model_f_extractor)
 
                 client_id = map_clients_ids[str(client)]
@@ -157,10 +162,10 @@ class Server:
                 }, join(round_path, f"{str(client.id)}.pt"))
             #!###################
 
-            printplus(f"Trained {len(selected_clients)} clients")
+            config.printplus(f"Trained {len(selected_clients)} clients")
 
             #? Model aggregations
-            printplus(f"Aggregating models")
+            config.printplus(f"Aggregating models")
             start = time()
             self.model_f_extractor = self.aggregate_networks(clients=self.clients)
             elapsed = elapsed + max(0, time() - start)
@@ -171,7 +176,7 @@ class Server:
             self.score = 0
 
             for index, client in enumerate(self.clients, start=1):
-                printplus(f"Evaluating {index} / {len(self.clients)}")
+                config.printplus(f"Evaluating {index} / {len(self.clients)}")
 
                 eval_loss = client.eval_model_f_extractor_and_sensor(model_f_extractor=self.model_f_extractor)
 
@@ -188,11 +193,11 @@ class Server:
 
             elapsed = elapsed + max(0, time() - start)
 
-            printplus(f"Evaluated {len(self.clients)} clients")
+            config.printplus(f"Evaluated {len(self.clients)} clients")
 
             #? Check for improvements
-            printplus(f"Current score: {self.score}")
-            printplus(f"Best score: {best_score}")
+            config.printplus(f"Current score: {self.score}")
+            config.printplus(f"Best score: {best_score}")
 
             if self.score > best_score:
                 stop_counter = 0
@@ -209,10 +214,10 @@ class Server:
                 "model_sensors": {
                     str(client): [deepcopy(model_sensor.state_dict()) for model_sensor in client.model_sensors]
                 for client in self.clients}
-            }, join(round_path, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"))
+            }, join(round_path, f"{constants.WIDE_DEEP_NETWORK_BASENAME}.pt"))
             #!###################
 
-            printplus(f"Patience {stop_counter} / {flad.FLAD_PATIENCE}")
+            config.printplus(f"Patience {stop_counter} / {constants.flad.FLAD_PATIENCE}")
 
             log = {
                 "round": round_num,
@@ -228,7 +233,7 @@ class Server:
             run.log(log)
 
             #? Check stop conditions
-            if stop_counter >= flad.FLAD_PATIENCE:
+            if stop_counter >= constants.flad.FLAD_PATIENCE:
                 break
         
         self.model_f_extractor = deepcopy(best_model_f_extractor)
@@ -241,6 +246,6 @@ class Server:
             "model_sensors": {
                 str(client): [deepcopy(model_sensor.state_dict()) for model_sensor in client.model_sensors]
             for client in self.clients}
-        }, join(session_path, f"{WIDE_DEEP_NETWORK_BASENAME}.pt"))
+        }, join(session_path, f"{constants.WIDE_DEEP_NETWORK_BASENAME}.pt"))
 
         run.finish()

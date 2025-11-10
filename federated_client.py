@@ -1,5 +1,6 @@
-from config import *
-from constants import *
+import config
+import constants
+
 from models import ModelFExtractor, ModelSensors, PredErrorModel
 
 import torch
@@ -12,17 +13,11 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 import h5py
 import numpy as np
 
-from collections import OrderedDict, deque
+from collections import OrderedDict
 
 from copy import deepcopy
 
-from time import time
-
 import uuid
-
-import matplotlib.pyplot as plt
-
-import pickle
 
 class Client:
     def __init__(
@@ -82,16 +77,16 @@ class Client:
         self.outputs = outputs
 
         self.model_f_extractor = ModelFExtractor(
-            window_size_in=daics.WINDOW_PAST, 
-            window_size_out=daics.WINDOW_PRESENT, 
-            n_devices_in=len(GLOBAL_INPUTS), 
-            kernel_size=daics.KERNEL_SIZE
+            window_size_in=constants.daics.WINDOW_PAST, 
+            window_size_out=constants.daics.WINDOW_PRESENT, 
+            n_devices_in=len(constants.GLOBAL_INPUTS), 
+            kernel_size=constants.daics.KERNEL_SIZE
         )
 
-        active_stages = [[] for _ in DEFAULT_STAGES]
+        active_stages = [[] for _ in constants.DEFAULT_STAGES]
 
         for output in self.outputs:
-            for index, stage in enumerate(DEFAULT_STAGES):
+            for index, stage in enumerate(constants.DEFAULT_STAGES):
                 
                 if output in stage:
                     active_stages[index].append(output)
@@ -113,14 +108,15 @@ class Client:
             model_sensors_params = model_sensors_params + list(model_sensor.parameters())
 
         self.pred_error_models = [PredErrorModel(
-            window_size_in=daics.WINDOW_PAST, 
-            window_size_out=daics.WINDOW_PRESENT
+            window_size_in=constants.daics.WINDOW_PAST, 
+            window_size_out=constants.daics.WINDOW_PRESENT
         ) for _ in range(len(self.model_sensors))]
 
-        # self.optimizer = torch.optim.SGD(list(self.model_f_extractor.parameters()) + model_sensors_params, lr=daics.LEARNING_RATE, momentum=daics.MOMENTUM)
-        # self.optimizer = torch.optim.Adam(list(self.model_f_extractor.parameters()) + model_sensors_params, lr=daics.LEARNING_RATE, weight_decay=daics.WEIGHT_DECAY)
-        self.optimizer = torch.optim.AdamW(list(self.model_f_extractor.parameters()) + model_sensors_params, lr=daics.LEARNING_RATE, betas=(0.9, 0.9), weight_decay=daics.WEIGHT_DECAY)
-        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=daics.DAICS_PATIENCE)
+        self.optimizer = torch.optim.SGD(list(self.model_f_extractor.parameters()) + model_sensors_params, lr=constants.daics.LEARNING_RATE, momentum=constants.daics.MOMENTUM)
+        # self.optimizer = torch.optim.Adam(list(self.model_f_extractor.parameters()) + model_sensors_params, lr=constants.daics.LEARNING_RATE, weight_decay=constants.daics.WEIGHT_DECAY)
+        # self.optimizer = torch.optim.AdamW(list(self.model_f_extractor.parameters()) + model_sensors_params, lr=constants.daics.LEARNING_RATE, betas=(0.9, 0.9), weight_decay=constants.daics.WEIGHT_DECAY)
+
+        self.scheduler = ReduceLROnPlateau(self.optimizer, patience=constants.daics.DAICS_PATIENCE)
         self.criterion = nn.MSELoss()
 
         self.epochs = 0
@@ -128,22 +124,22 @@ class Client:
         self.batch_size = 0
         self.score = float("-inf")
 
-        self.input_mask = [list(GLOBAL_INPUTS).index(x) for x in self.inputs]
+        self.input_mask = [list(constants.GLOBAL_INPUTS).index(x) for x in self.inputs]
         self.output_mask = [[list(self.inputs).index(output) for output in outputs] for outputs in active_stages if len(outputs)]
 
-        self.mask = torch.zeros(daics.BATCH_SIZE, daics.WINDOW_PAST, len(GLOBAL_INPUTS))
+        self.mask = torch.zeros(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PAST, len(constants.GLOBAL_INPUTS))
         self.mask[:, :, self.input_mask] = 1
-        self.mask = self.mask.to(DEVICE)
+        self.mask = self.mask.to(config.DEVICE)
 
     def __str__(self) -> str:
         return self.id
 
     def train_model_f_extractor_and_sensors(self, model_f_extractor: ModelFExtractor, ) -> tuple:
 
-        self.model_f_extractor.to(DEVICE)
+        self.model_f_extractor.to(config.DEVICE)
 
         for model_sensor in self.model_sensors:
-            model_sensor.to(DEVICE)
+            model_sensor.to(config.DEVICE)
 
         self.model_f_extractor.load_state_dict(deepcopy(model_f_extractor.state_dict()))
 
@@ -153,28 +149,28 @@ class Client:
         best_model_f_extractor = None
         best_model_sensor = None
 
-        printplus(f"Steps before: {self.steps}", log_only=True)
-        printplus(f"Batch size before: {self.batch_size}", log_only=True)
-        printplus(f"Epochs before: {self.epochs}", log_only=True)
+        config.printplus(f"Steps before: {self.steps}", log_only=True)
+        config.printplus(f"Batch size before: {self.batch_size}", log_only=True)
+        config.printplus(f"Epochs before: {self.epochs}", log_only=True)
 
-        steps = max(flad.MIN_STEPS, min(self.steps, flad.MAX_STEPS))
-        batch_size = max(daics.BATCH_SIZE, min(len(self.train_input_indices) // steps, WIDE_DEEP_MAX_BATCH_SIZE))
-        steps = max(flad.MIN_STEPS, min(len(self.train_input_indices) // batch_size, flad.MAX_STEPS))
+        steps = max(constants.flad.MIN_STEPS, min(self.steps, constants.flad.MAX_STEPS))
+        batch_size = max(constants.daics.BATCH_SIZE, min(len(self.train_input_indices) // steps, config.WIDE_DEEP_MAX_BATCH_SIZE))
+        steps = max(constants.flad.MIN_STEPS, min(len(self.train_input_indices) // batch_size, constants.flad.MAX_STEPS))
 
         self.steps = steps
         self.batch_size = batch_size
 
-        printplus(f"Steps after: {self.steps}", log_only=True)
-        printplus(f"Batch size after: {self.batch_size}", log_only=True)
-        printplus(f"Epochs after: {self.epochs}", log_only=True)
+        config.printplus(f"Steps after: {self.steps}", log_only=True)
+        config.printplus(f"Batch size after: {self.batch_size}", log_only=True)
+        config.printplus(f"Epochs after: {self.epochs}", log_only=True)
 
         # Calculate indices
         train_input_indices = self.train_input_indices[:self.steps * self.batch_size]
         train_output_indices = self.train_output_indices[:self.steps * self.batch_size]
 
-        train_mask = torch.zeros(self.batch_size, daics.WINDOW_PAST, len(GLOBAL_INPUTS))
+        train_mask = torch.zeros(self.batch_size, constants.daics.WINDOW_PAST, len(constants.GLOBAL_INPUTS))
         train_mask[:, :, self.input_mask] = 1
-        train_mask = train_mask.to(DEVICE)
+        train_mask = train_mask.to(config.DEVICE)
 
         for epoch in range(self.epochs):
 
@@ -191,14 +187,15 @@ class Client:
                 # Input
                 df_in = self.df_train[train_input_indices[batch_index * self.batch_size: batch_index * self.batch_size + self.batch_size].flatten()]
 
-                w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+                w_in = np.zeros((len(df_in), len(constants.GLOBAL_INPUTS)), dtype=np.float32)
                 w_in[:, self.input_mask] = df_in
 
-                w_in = w_in.reshape(self.batch_size, daics.WINDOW_PAST, -1)
-                w_in = torch.from_numpy(w_in).float().to(DEVICE)
+                w_in = w_in.reshape(self.batch_size, constants.daics.WINDOW_PAST, -1)
+                w_in = torch.from_numpy(w_in).float().to(config.DEVICE)
 
                 # Reset gradients
-                self.model_f_extractor.zero_grad()
+                # self.model_f_extractor.zero_grad()
+                self.optimizer.zero_grad(set_to_none=True)
 
                 # Forward pass through the feature extractor
                 x = self.model_f_extractor(w_in, train_mask)
@@ -211,31 +208,45 @@ class Client:
                     # Output
                     df_out = self.df_train[train_output_indices[batch_index * self.batch_size: batch_index * self.batch_size + self.batch_size].flatten()][:, output_mask]
 
-                    w_out = df_out.reshape(self.batch_size, daics.WINDOW_PRESENT, -1)
-                    w_out = torch.from_numpy(w_out).float().to(DEVICE)
+                    w_out = df_out.reshape(self.batch_size, constants.daics.WINDOW_PRESENT, -1)
+                    w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
-                    model_sensor.zero_grad()
+                    # model_sensor.zero_grad()
 
                     y = model_sensor(x)
 
                     # Compute loss
                     tmp = self.criterion(y, w_out)
 
+                    #! CLIP THE LOSS
+                    tmp = torch.clamp(tmp, max=2.0)
+
                     loss = loss + tmp
 
-                    printplus(f"Training loss #{index}: {tmp}", log_only=True)
+                    config.printplus(f"Training loss #{index}: {tmp}", log_only=True)
 
+                #! SAFETY CHECK FOR NON-FINITE LOSS
+                if not torch.isfinite(loss):
+                    config.printplus(f"Skipping batch due to invalid loss ({loss.item()})", log_only=True)
+                    continue
 
-                # One SGD step
+                # One step
                 loss.backward()
+
+                #! CLIP GRADIENTS
+                torch.nn.utils.clip_grad_norm_(
+                    parameters=list(self.model_f_extractor.parameters()) + [p for m in self.model_sensors for p in m.parameters()],
+                    max_norm=1.0
+                )
+                
                 self.optimizer.step()
 
-                train_loss = train_loss + loss.item()
+                train_loss = train_loss + loss.detach()
 
-                printplus(" " * 100, end="\r")
-                printplus(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {self.steps} | Training loss {train_loss / step}", end="\r")
+                config.printplus(" " * 100, end="\r")
+                config.printplus(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {self.steps} | Training loss {train_loss.item() / step}", end="\r")
 
-            train_loss = train_loss / self.steps
+            train_loss = train_loss.item() / self.steps
 
             min_train_loss = min(min_train_loss, train_loss)
 
@@ -247,20 +258,20 @@ class Client:
 
             val_loss = 0
 
-            steps = len(self.val_input_indices) // daics.BATCH_SIZE
+            steps = len(self.val_input_indices) // constants.daics.BATCH_SIZE
 
             with torch.no_grad():
 
                 for step, batch_index in enumerate(np.random.permutation(range(0, steps)), start=1):
                     
                     # Input
-                    df_in = self.df_val[self.val_input_indices[batch_index * daics.BATCH_SIZE: batch_index * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()]
+                    df_in = self.df_val[self.val_input_indices[batch_index * constants.daics.BATCH_SIZE: batch_index * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()]
 
-                    w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+                    w_in = np.zeros((len(df_in), len(constants.GLOBAL_INPUTS)), dtype=np.float32)
                     w_in[:, self.input_mask] = df_in
 
-                    w_in = w_in.reshape(daics.BATCH_SIZE, daics.WINDOW_PAST, -1)
-                    w_in = torch.from_numpy(w_in).float().to(DEVICE)
+                    w_in = w_in.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PAST, -1)
+                    w_in = torch.from_numpy(w_in).float().to(config.DEVICE)
 
                     # Forward pass through the feature extractor
                     x = self.model_f_extractor(w_in, self.mask)
@@ -271,10 +282,10 @@ class Client:
                     for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask), start=1):
 
                         # Output
-                        df_out = self.df_val[self.val_output_indices[batch_index * daics.BATCH_SIZE: batch_index * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()][:, output_mask]
+                        df_out = self.df_val[self.val_output_indices[batch_index * constants.daics.BATCH_SIZE: batch_index * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()][:, output_mask]
 
-                        w_out = df_out.reshape(daics.BATCH_SIZE, daics.WINDOW_PRESENT, -1)
-                        w_out = torch.from_numpy(w_out).float().to(DEVICE)
+                        w_out = df_out.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PRESENT, -1)
+                        w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
                         y = model_sensor(x)
 
@@ -283,14 +294,14 @@ class Client:
 
                         loss = loss + tmp
 
-                        printplus(f"Validation loss #{index}: {tmp}", log_only=True)
+                        config.printplus(f"Validation loss #{index}: {tmp}", log_only=True)
 
-                    val_loss = val_loss + loss.item()
+                    val_loss = val_loss + loss.detach()
 
-                    printplus(" " * 100, end="\r")
-                    printplus(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss / step}", end="\r")
+                    config.printplus(" " * 100, end="\r")
+                    config.printplus(f"Epoch: {epoch + 1} / {self.epochs} | Step: {step} / {steps} | Validation loss: {val_loss.item() / step}", end="\r")
 
-            val_loss = val_loss / steps
+            val_loss = val_loss.item() / steps
 
             # Save best models
             if val_loss < min_val_loss:
@@ -307,17 +318,17 @@ class Client:
         for model_sensor, best_model_sensor in zip(self.model_sensors, best_model_sensors):
             model_sensor.load_state_dict(deepcopy(best_model_sensor))
 
-        printplus(" " * 100, end="\r")
-        printplus(f"Training loss: {min_train_loss} | Validation loss: {min_val_loss}")
+        config.printplus(" " * 100, end="\r")
+        config.printplus(f"Training loss: {min_train_loss} | Validation loss: {min_val_loss}")
         
         return -min_train_loss, -min_val_loss
 
     def eval_model_f_extractor_and_sensor(self, model_f_extractor: ModelFExtractor, ) -> float:
         
-        self.model_f_extractor.to(DEVICE)
+        self.model_f_extractor.to(config.DEVICE)
 
         for model_sensor in self.model_sensors:
-            model_sensor.to(DEVICE)
+            model_sensor.to(config.DEVICE)
 
         self.model_f_extractor.load_state_dict(deepcopy(model_f_extractor.state_dict()))
 
@@ -329,20 +340,20 @@ class Client:
 
         eval_loss = 0
 
-        steps = len(self.test_input_indices) // daics.BATCH_SIZE
+        steps = len(self.test_input_indices) // constants.daics.BATCH_SIZE
 
         with torch.no_grad():
             
             for step, batch_index in enumerate(np.random.permutation(range(0, steps)), start=1):
                 
                 # Input
-                df_in = self.df_test[self.test_input_indices[batch_index * daics.BATCH_SIZE: batch_index * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()]
+                df_in = self.df_test[self.test_input_indices[batch_index * constants.daics.BATCH_SIZE: batch_index * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()]
 
-                w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+                w_in = np.zeros((len(df_in), len(constants.GLOBAL_INPUTS)), dtype=np.float32)
                 w_in[:, self.input_mask] = df_in
 
-                w_in = w_in.reshape(daics.BATCH_SIZE, daics.WINDOW_PAST, -1)
-                w_in = torch.from_numpy(w_in).float().to(DEVICE)
+                w_in = w_in.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PAST, -1)
+                w_in = torch.from_numpy(w_in).float().to(config.DEVICE)
 
                 # Forward pass through the feature extractor
                 x = self.model_f_extractor(w_in, self.mask)
@@ -353,11 +364,11 @@ class Client:
                 for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask), start=1):
 
                     # Output
-                    df_out = self.df_test[self.test_output_indices[batch_index * daics.BATCH_SIZE: batch_index * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()][:, output_mask]
+                    df_out = self.df_test[self.test_output_indices[batch_index * config.constants.daics.BATCH_SIZE: batch_index * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()][:, output_mask]
 
                     # Output
-                    w_out = df_out.reshape(daics.BATCH_SIZE, daics.WINDOW_PRESENT, -1)
-                    w_out = torch.from_numpy(w_out).float().to(DEVICE)
+                    w_out = df_out.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PRESENT, -1)
+                    w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
                     y = model_sensor(x)
 
@@ -366,28 +377,28 @@ class Client:
 
                     loss = loss + tmp
 
-                    printplus(f"Evaluation loss #{index}: {tmp}", log_only=True)
+                    config.printplus(f"Evaluation loss #{index}: {tmp}", log_only=True)
 
-                eval_loss = eval_loss + loss.item()
+                eval_loss = eval_loss + loss.detach()
 
-                printplus(" " * 100, end="\r")
-                printplus(f"Step: {step} / {steps} | Evaluation loss: {eval_loss / step}", end="\r")
+                config.printplus(" " * 100, end="\r")
+                config.printplus(f"Step: {step} / {steps} | Evaluation loss: {eval_loss.item() / step}", end="\r")
                 
-        eval_loss = eval_loss / steps
+        eval_loss = eval_loss.item() / steps
 
         self.score = -eval_loss
 
-        printplus(" " * 100, end="\r")
-        printplus(f"Evaluation loss: {eval_loss}")
+        config.printplus(" " * 100, end="\r")
+        config.printplus(f"Evaluation loss: {eval_loss}")
 
         return -eval_loss
 
     def train_pred_error_model(self, ):
         
-        self.model_f_extractor.to(DEVICE)
+        self.model_f_extractor.to(config.DEVICE)
         
         for model_sensor in self.model_sensors:
-            model_sensor.to(DEVICE)
+            model_sensor.to(config.DEVICE)
 
         self.model_f_extractor.eval()
         
@@ -398,27 +409,27 @@ class Client:
 
         def calculate_errors(df, input_indices, output_indices):
 
-            train_input_indices = input_indices[:(len(input_indices) // daics.BATCH_SIZE) * daics.BATCH_SIZE]
-            train_output_indices = output_indices[:(len(output_indices) // daics.BATCH_SIZE) * daics.BATCH_SIZE]
+            train_input_indices = input_indices[:(len(input_indices) // constants.daics.BATCH_SIZE) * constants.daics.BATCH_SIZE]
+            train_output_indices = output_indices[:(len(output_indices) // constants.daics.BATCH_SIZE) * constants.daics.BATCH_SIZE]
 
-            train_mask = torch.zeros(daics.BATCH_SIZE, daics.WINDOW_PAST, len(GLOBAL_INPUTS))
+            train_mask = torch.zeros(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PAST, len(constants.GLOBAL_INPUTS))
             train_mask[:, :, self.input_mask] = 1
-            train_mask = train_mask.to(DEVICE)
+            train_mask = train_mask.to(config.DEVICE)
 
             all_predicted = [np.zeros(len(df), dtype=np.float32) for _ in range(len(self.model_sensors))]
 
-            steps = len(train_input_indices) // daics.BATCH_SIZE
+            steps = len(train_input_indices) // constants.daics.BATCH_SIZE
 
             for step in range(0, steps):
                 
                 # Input
-                df_in = df[train_input_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()]
+                df_in = df[train_input_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()]
 
-                w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+                w_in = np.zeros((len(df_in), len(constants.GLOBAL_INPUTS)), dtype=np.float32)
                 w_in[:, self.input_mask] = df_in
 
-                w_in = w_in.reshape(daics.BATCH_SIZE, daics.WINDOW_PAST, -1)
-                w_in = torch.from_numpy(w_in).float().to(DEVICE)
+                w_in = w_in.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PAST, -1)
+                w_in = torch.from_numpy(w_in).float().to(config.DEVICE)
 
                 # Forward pass through the feature extractor
                 x = self.model_f_extractor(w_in, self.mask)
@@ -427,20 +438,20 @@ class Client:
                 for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask)):
                     
                     # Output
-                    df_out = df[train_output_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()][:, output_mask]
+                    df_out = df[train_output_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE].flatten()][:, output_mask]
                     
-                    w_out = df_out.reshape(daics.BATCH_SIZE, daics.WINDOW_PRESENT, -1)
-                    w_out = torch.from_numpy(w_out).float().to(DEVICE)
+                    w_out = df_out.reshape(constants.daics.BATCH_SIZE, constants.daics.WINDOW_PRESENT, -1)
+                    w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
                     y = model_sensor(x)
 
                     # Compute loss
                     loss = torch.mean(criterion(y, w_out), dim=2)
 
-                    all_predicted[index][train_output_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE, 0]] = loss.detach().cpu().numpy()[:, 0]
+                    all_predicted[index][train_output_indices[step * constants.daics.BATCH_SIZE: step * constants.daics.BATCH_SIZE + constants.daics.BATCH_SIZE, 0]] = loss.detach().cpu().numpy()[:, 0]
 
-                printplus(" " * 100, end="\r")
-                printplus(f"Calculating errors {step + 1} / {steps}", end="\r")
+                config.printplus(" " * 100, end="\r")
+                config.printplus(f"Calculating errors {step + 1} / {steps}", end="\r")
 
             return all_predicted
 
@@ -456,65 +467,66 @@ class Client:
         for index, pred_error_model in enumerate(self.pred_error_models):
             
             all_predicted = np.concatenate((np.trim_zeros(all_predicted_val[index]), np.trim_zeros(all_predicted_test[index])))
-            all_predicted = scipy.signal.medfilt(all_predicted, kernel_size=daics.MED_FILTER_LAG)
+            all_predicted = scipy.signal.medfilt(all_predicted, kernel_size=constants.daics.MED_FILTER_LAG)
 
-            input_indices = (np.arange(daics.SAMPLING_START, len(all_predicted), daics.VAL_STEP) - daics.HORIZON - daics.WINDOW_PRESENT)[:, None] - np.arange(1, daics.WINDOW_PAST + 1)
+            input_indices = (np.arange(constants.daicsSAMPLING_START, len(all_predicted), constants.daicsVAL_STEP) - constants.daicsHORIZON - constants.daicsWINDOW_PRESENT)[:, None] - np.arange(1, constants.daicsWINDOW_PAST + 1)
             input_indices = np.sort(input_indices)
-            input_indices = input_indices[: (len(input_indices) // daics.BATCH_SIZE) * daics.BATCH_SIZE, :]
+            input_indices = input_indices[: (len(input_indices) // constants.daicsBATCH_SIZE) * constants.daicsBATCH_SIZE, :]
 
-            output_indices = np.arange(daics.SAMPLING_START, len(all_predicted), daics.VAL_STEP)[:, None] - np.arange(1, daics.WINDOW_PRESENT + 1)
+            output_indices = np.arange(constants.daicsSAMPLING_START, len(all_predicted), constants.daicsVAL_STEP)[:, None] - np.arange(1, constants.daicsWINDOW_PRESENT + 1)
             output_indices = np.sort(output_indices)
-            output_indices = output_indices[: (len(output_indices) // daics.BATCH_SIZE) * daics.BATCH_SIZE, :]
+            output_indices = output_indices[: (len(output_indices) // constants.daicsBATCH_SIZE) * constants.daicsBATCH_SIZE, :]
 
-            pred_error_model.to(DEVICE)
+            pred_error_model.to(config.DEVICE)
         
-            # optimizer = torch.optim.SGD(pred_error_model.parameters(), lr=daics.LEARNING_RATE)
-            # optimizer = torch.optim.Adam(pred_error_model.parameters(), lr=daics.LEARNING_RATE, weight_decay=daics.WEIGHT_DECAY)
-            optimizer = torch.optim.AdamW(pred_error_model.parameters(), lr=daics.LEARNING_RATE, betas=(0.9, 0.9), weight_decay=daics.WEIGHT_DECAY)
+            optimizer = torch.optim.SGD(pred_error_model.parameters(), lr=constants.daicsLEARNING_RATE)
+            # optimizer = torch.optim.Adam(pred_error_model.parameters(), lr=constants.daicsLEARNING_RATE, weight_decay=constants.daicsWEIGHT_DECAY)
+            # optimizer = torch.optim.AdamW(pred_error_model.parameters(), lr=constants.daicsLEARNING_RATE, betas=(0.9, 0.9), weight_decay=constants.daicsWEIGHT_DECAY)
 
             min_train_loss = float("inf")
 
-            for epoch in range(daics.THRESHOLD_EPOCHS):
+            for epoch in range(constants.daicsTHRESHOLD_EPOCHS):
                 
                 pred_error_model.train()
 
                 train_loss = 0
 
-                steps = len(input_indices) // daics.BATCH_SIZE
+                steps = len(input_indices) // constants.daicsBATCH_SIZE
 
                 for step, batch_index in enumerate(np.random.permutation(range(0, steps)), start=1):
 
-                    df_in = all_predicted[input_indices[batch_index * daics.BATCH_SIZE: batch_index * daics.BATCH_SIZE + daics.BATCH_SIZE]]
-                    df_out = all_predicted[output_indices[batch_index * daics.BATCH_SIZE: batch_index * daics.BATCH_SIZE + daics.BATCH_SIZE]]
+                    df_in = all_predicted[input_indices[batch_index * constants.daicsBATCH_SIZE: batch_index * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE]]
+                    df_out = all_predicted[output_indices[batch_index * constants.daicsBATCH_SIZE: batch_index * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE]]
 
                     # Input and output
-                    w_in = torch.from_numpy(df_in[:, :, None]).float().to(DEVICE)
-                    w_out = torch.from_numpy(df_out[:, :, None]).float().to(DEVICE)
+                    w_in = torch.from_numpy(df_in[:, :, None]).float().to(config.DEVICE)
+                    w_out = torch.from_numpy(df_out[:, :, None]).float().to(config.DEVICE)
 
-                    pred_error_model.zero_grad()
+                    # pred_error_model.zero_grad()
+                    optimizer.zero_grad(set_to_none=True)
 
-                    y = pred_error_model(w_in.float().to(DEVICE)).abs()
+                    y = pred_error_model(w_in.float().to(config.DEVICE)).abs()
 
                     if torch.all(y == 0).item():
-                        pred_error_model.zero_grad()
+                        # pred_error_model.zero_grad()
 
                         pred_error_model.apply(lambda model: model.reset_parameters() if isinstance(model, nn.Conv1d) or isinstance(model, nn.Linear) else None)
 
-                        y = pred_error_model(w_in.float().to(DEVICE)).abs()
+                        y = pred_error_model(w_in.float().to(config.DEVICE)).abs()
                     
                     # Compute loss
                     loss = criterion(y, w_out)
 
-                    train_loss = train_loss +  loss.item()
+                    train_loss = train_loss +  loss.detach()
 
-                    # One SGD step
+                    # One step
                     loss.backward(retain_graph=True)
                     optimizer.step()
 
-                    printplus(" " * 100, end="\r")
-                    printplus(f"[{index + 1} / {len(self.model_sensors)}] Epoch: {epoch + 1} / {daics.THRESHOLD_EPOCHS} | Step: {step} / {steps} | Training loss: {train_loss / step}", end="\r")
+                    config.printplus(" " * 100, end="\r")
+                    config.printplus(f"[{index + 1} / {len(self.model_sensors)}] Epoch: {epoch + 1} / {constants.daicsTHRESHOLD_EPOCHS} | Step: {step} / {steps} | Training loss: {train_loss.item() / step}", end="\r")
                 
-                train_loss = train_loss / steps
+                train_loss = train_loss.item() / steps
 
                 # Save best model
                 if train_loss < min_train_loss:
@@ -527,19 +539,19 @@ class Client:
         for pred_error_model, best_pred_error_model in zip(self.pred_error_models, best_pred_error_models):
             pred_error_model.load_state_dict(deepcopy(best_pred_error_model))
         
-        printplus(" " * 100, end="\r")
-        printplus(f"Training loss: {np.mean(losses)}")
+        config.printplus(" " * 100, end="\r")
+        config.printplus(f"Training loss: {np.mean(losses)}")
 
         return losses
 
     def calculate_threshold_base(self, ):
 
-        self.model_f_extractor.to(DEVICE)
+        self.model_f_extractor.to(config.DEVICE)
 
         self.model_f_extractor.eval()
         
         for model_sensor in self.model_sensors:
-            model_sensor.to(DEVICE)
+            model_sensor.to(config.DEVICE)
     
         criterion = nn.MSELoss(reduction="none")
 
@@ -547,18 +559,18 @@ class Client:
 
             errors = [[] for _ in range(len(self.model_sensors))]
 
-            steps = len(input_indices) // daics.BATCH_SIZE
+            steps = len(input_indices) // constants.daicsBATCH_SIZE
 
             for step in range(0, steps):
                 
                 # Input
-                df_in = df[input_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()]
+                df_in = df[input_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()]
 
-                w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+                w_in = np.zeros((len(df_in), len(constants.GLOBAL_INPUTS)), dtype=np.float32)
                 w_in[:, self.input_mask] = df_in
 
-                w_in = w_in.reshape(daics.BATCH_SIZE, daics.WINDOW_PAST, -1)
-                w_in = torch.from_numpy(w_in).float().to(DEVICE)
+                w_in = w_in.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PAST, -1)
+                w_in = torch.from_numpy(w_in).float().to(config.DEVICE)
 
                 # Forward pass through the feature extractor
                 x = self.model_f_extractor(w_in, self.mask)
@@ -567,20 +579,20 @@ class Client:
                 for index, (model_sensor, output_mask) in enumerate(zip(self.model_sensors, self.output_mask)):
                     
                     # Output
-                    df_out = df[output_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()][:, output_mask]
+                    df_out = df[output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()][:, output_mask]
 
-                    w_out = df_out.reshape(daics.BATCH_SIZE, daics.WINDOW_PRESENT, -1)
-                    w_out = torch.from_numpy(w_out).float().to(DEVICE)
+                    w_out = df_out.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PRESENT, -1)
+                    w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
                     y = model_sensor(x)
 
                     # Compute loss
                     loss = torch.mean(criterion(y, w_out), dim=2)
                 
-                    errors[index].append(scipy.signal.medfilt(loss.detach().cpu().numpy()[:, 0].flatten(), kernel_size=daics.MED_FILTER_LAG))
+                    errors[index].append(scipy.signal.medfilt(loss.detach().cpu().numpy()[:, 0].flatten(), kernel_size=constants.daicsMED_FILTER_LAG))
 
-                printplus(" " * 100, end="\r")
-                printplus(f"Calculating errors {step + 1} / {steps}", end="\r")
+                config.printplus(" " * 100, end="\r")
+                config.printplus(f"Calculating errors {step + 1} / {steps}", end="\r")
             
             return [item for loss in errors for item in loss]
 
@@ -601,13 +613,13 @@ class Client:
         
         self.calculate_threshold_base()
 
-        self.model_f_extractor.to(DEVICE)
+        self.model_f_extractor.to(config.DEVICE)
 
         for model_sensor in self.model_sensors:
-            model_sensor.to(DEVICE)
+            model_sensor.to(config.DEVICE)
 
         for pred_error_model in self.pred_error_models:
-            pred_error_model.to(DEVICE)
+            pred_error_model.to(config.DEVICE)
 
         self.model_f_extractor.eval()
 
@@ -620,7 +632,7 @@ class Client:
         pred_error_optimizer = []
 
         for model_sensor, pred_error_model in zip(self.model_sensors, self.pred_error_models):
-            pred_error_optimizer.append(torch.optim.SGD(pred_error_model.parameters(), lr=daics.LEARNING_RATE))
+            pred_error_optimizer.append(torch.optim.SGD(pred_error_model.parameters(), lr=constants.daicsLEARNING_RATE))
 
             for name, param in model_sensor.named_children():
                 for p in param.parameters():
@@ -631,7 +643,7 @@ class Client:
             all_threshold_sen.append(np.zeros(len(self.df_real), dtype=float))
             thresholds_sen.append(np.zeros(len(self.df_real), dtype=float))
 
-        actuators = [list(self.inputs).index(item) for item in self.inputs if item in set(ACTUATORS)]
+        actuators = [list(self.inputs).index(item) for item in self.inputs if item in set(constants.ACTUATORS)]
 
         database_actuators = np.concatenate((
             self.df_val[:, actuators],
@@ -652,7 +664,7 @@ class Client:
         human_inter_counter = 0
         actuation_alarm = 0
 
-        steps = len(self.real_output_indices) // daics.BATCH_SIZE
+        steps = len(self.real_output_indices) // constants.daicsBATCH_SIZE
 
         criterion1 = nn.MSELoss(reduction="none") # test_loss_function
         criterion2 = nn.MSELoss() # threshold_loss_function
@@ -660,24 +672,24 @@ class Client:
 
         for step in range(0, steps):
 
-            apply_thr_start = self.real_output_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE][0, 0]
-            apply_thr_end = self.real_output_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE][-1, 0]
+            apply_thr_start = self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE][0, 0]
+            apply_thr_end = self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE][-1, 0]
         
             # Input
-            df_in = self.df_real[self.real_input_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()]
+            df_in = self.df_real[self.real_input_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()]
 
-            w_in = np.zeros((len(df_in), len(GLOBAL_INPUTS)), dtype=np.float32)
+            w_in = np.zeros((len(df_in), len(constants.GLOBAL_INPUTS)), dtype=np.float32)
             w_in[:, self.input_mask] = df_in
 
-            w_in = w_in.reshape(daics.BATCH_SIZE, daics.WINDOW_PAST, -1)
-            w_in = torch.from_numpy(w_in).float().to(DEVICE)
+            w_in = w_in.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PAST, -1)
+            w_in = torch.from_numpy(w_in).float().to(config.DEVICE)
 
             # Forward pass through the feature extractor
             x = self.model_f_extractor(w_in, self.mask)
         
             set_database_actuators = set(map(tuple, database_actuators))
 
-            window_t_actuator = self.df_real[np.unique(self.real_output_indices[step * daics.BATCH_SIZE:  step * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten())][:, actuators][:daics.BATCH_SIZE, :]
+            window_t_actuator = self.df_real[np.unique(self.real_output_indices[step * constants.daicsBATCH_SIZE:  step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten())][:, actuators][:constants.daicsBATCH_SIZE, :]
 
             tmp = [(set(map(tuple, np.expand_dims(x_window_t_actuator, axis=0))) & set_database_actuators) == set() for  x_window_t_actuator in window_t_actuator]
 
@@ -688,24 +700,24 @@ class Client:
             else:
                 actuation_alarm = 0
             
-            idx_threshold = (np.arange(apply_thr_start, apply_thr_end + 1) - daics.HORIZON)[:, None] - np.arange(1, daics.WINDOW_PAST + 1)
+            idx_threshold = (np.arange(apply_thr_start, apply_thr_end + 1) - constants.daicsHORIZON)[:, None] - np.arange(1, constants.daicsWINDOW_PAST + 1)
 
             for index, (model_sensor, pred_error_model, output_mask) in enumerate(zip(self.model_sensors, self.pred_error_models, self.output_mask)):
                     
                 # Output
-                df_out = self.df_real[self.real_output_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()][:, output_mask]
+                df_out = self.df_real[self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()][:, output_mask]
 
-                w_out = df_out.reshape(daics.BATCH_SIZE, daics.WINDOW_PRESENT, -1)
-                w_out = torch.from_numpy(w_out).float().to(DEVICE)
+                w_out = df_out.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PRESENT, -1)
+                w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
                 y = model_sensor(x)
 
                 pred_error_sen = torch.mean(criterion1(y, w_out), dim=2)
 
-                all_predicted_sen[index][self.real_output_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE, 0]] = pred_error_sen.detach().cpu().numpy()[:, 0]
-                all_predicted_sen[index][apply_thr_start - daics.W_ANOMALY * 2: apply_thr_end + 1] = scipy.signal.medfilt(all_predicted_sen[index][apply_thr_start - daics.W_ANOMALY * 2: apply_thr_end + 1], kernel_size=daics.MED_FILTER_LAG)
+                all_predicted_sen[index][self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE, 0]] = pred_error_sen.detach().cpu().numpy()[:, 0]
+                all_predicted_sen[index][apply_thr_start - constants.daicsW_ANOMALY * 2: apply_thr_end + 1] = scipy.signal.medfilt(all_predicted_sen[index][apply_thr_start - constants.daicsW_ANOMALY * 2: apply_thr_end + 1], kernel_size=constants.daicsMED_FILTER_LAG)
 
-                threshold_wt_1 = torch.from_numpy(all_predicted_sen[index][idx_threshold][:, :, None]).float().to(DEVICE)
+                threshold_wt_1 = torch.from_numpy(all_predicted_sen[index][idx_threshold][:, :, None]).float().to(config.DEVICE)
 
                 pred_error_model.zero_grad()
 
@@ -735,11 +747,11 @@ class Client:
 
                 thresholds_sen[index][apply_thr_start: apply_thr_end + 1] = np.squeeze(threshold)
 
-                idx_win_thr = np.arange(apply_thr_start, apply_thr_end + 1)[:, None] - np.arange(daics.W_ANOMALY)
+                idx_win_thr = np.arange(apply_thr_start, apply_thr_end + 1)[:, None] - np.arange(constants.daicsW_ANOMALY)
 
                 all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] = np.all(all_predicted_sen[index][idx_win_thr] > threshold, 1)
 
-            if np.any(all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.count_nonzero(all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)]) <= daics.W_GRACE:
+            if np.any(all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.count_nonzero(all_threshold_act[np.arange(apply_thr_start, apply_thr_end + 1)]) <= constants.daicsW_GRACE:
 
                 database_actuators = np.concatenate((database_actuators, window_t_actuator), axis=0)
                 database_actuators = np.unique(database_actuators, axis=0)
@@ -755,20 +767,20 @@ class Client:
         
             for index, (model_sensor, pred_error_model, output_mask) in enumerate(zip(self.model_sensors, self.pred_error_models, self.output_mask)):
 
-                if np.any(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.count_nonzero(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)]) <= daics.W_GRACE:
+                if np.any(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.count_nonzero(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)]) <= constants.daicsW_GRACE:
                     
-                    df_out = self.df_real[self.real_output_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()][:, output_mask]
+                    df_out = self.df_real[self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()][:, output_mask]
 
-                    w_out = df_out.reshape(daics.BATCH_SIZE, daics.WINDOW_PRESENT, -1)
-                    w_out = torch.from_numpy(w_out).float().to(DEVICE)
+                    w_out = df_out.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PRESENT, -1)
+                    w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
                     # Prepare the optimizer
-                    ftune_optimizer = torch.optim.SGD(model_sensor.parameters(), lr=daics.LEARNING_RATE, momentum=0.9, dampening=0.9, weight_decay=0.001)
+                    ftune_optimizer = torch.optim.SGD(model_sensor.parameters(), lr=constants.daicsLEARNING_RATE, momentum=0.9, dampening=0.9, weight_decay=0.001)
                     ftune_scheduler = ReduceLROnPlateau(ftune_optimizer)
                     # Fine-tune the output section
-                    for epoch in range(daics.T_EPOCHS):
+                    for epoch in range(constants.daicsT_EPOCHS):
                         model_sensor.zero_grad()
-                        f_extracted = self.model_f_extractor(w_in[:-4].float().to(DEVICE))
+                        f_extracted = self.model_f_extractor(w_in[:-4].float().to(config.DEVICE))
                         y_t_sen = model_sensor(f_extracted)
                         loss = criterion3(y_t_sen, w_out[:-4])
                         loss.backward()
@@ -780,30 +792,30 @@ class Client:
 
                 if np.any(all_threshold_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] == 1) and np.all(all_labels_threshold[np.arange(apply_thr_start, apply_thr_end + 1)] == 0):
                     
-                    df_out = self.df_real[self.real_output_indices[step * daics.BATCH_SIZE: step * daics.BATCH_SIZE + daics.BATCH_SIZE].flatten()][:, output_mask]
+                    df_out = self.df_real[self.real_output_indices[step * constants.daicsBATCH_SIZE: step * constants.daicsBATCH_SIZE + constants.daicsBATCH_SIZE].flatten()][:, output_mask]
 
-                    w_out = df_out.reshape(daics.BATCH_SIZE, daics.WINDOW_PRESENT, -1)
-                    w_out = torch.from_numpy(w_out).float().to(DEVICE)
+                    w_out = df_out.reshape(constants.daicsBATCH_SIZE, constants.daicsWINDOW_PRESENT, -1)
+                    w_out = torch.from_numpy(w_out).float().to(config.DEVICE)
 
                     # Increment the human intervention counter
                     human_inter_counter += 1
                     # Flag the indices of human intervention for debugging purposes
                     human_idx_sen[index][np.arange(apply_thr_start, apply_thr_end + 1)] = 1
-                    ftune_optimizer = torch.optim.SGD(model_sensor.parameters(), lr=daics.LEARNING_RATE, momentum=daics.MOMENTUM, dampening=0.9, weight_decay=0.001)
+                    ftune_optimizer = torch.optim.SGD(model_sensor.parameters(), lr=constants.daicsLEARNING_RATE, momentum=constants.daicsMOMENTUM, dampening=0.9, weight_decay=0.001)
                     ftune_scheduler = ReduceLROnPlateau(ftune_optimizer)
                     # Fine-tune the output section
-                    for epoch in range(daics.T_EPOCHS):
+                    for epoch in range(constants.daicsT_EPOCHS):
                         model_sensor.zero_grad()
                         w_t_1 = w_in.detach().clone()
-                        f_extracted = self.model_f_extractor(w_t_1[:-4].float().to(DEVICE))
+                        f_extracted = self.model_f_extractor(w_t_1[:-4].float().to(config.DEVICE))
                         y_t_sen = model_sensor(f_extracted)
                         loss = criterion3(y_t_sen, w_out[:-4])
                         loss.backward()
                         ftune_optimizer.step()
                         ftune_scheduler.step(loss)
 
-            printplus(" " * 100, end="\r")
-            printplus(f"Step {step + 1} / {steps}", end="\r")
+            config.printplus(" " * 100, end="\r")
+            config.printplus(f"Step {step + 1} / {steps}", end="\r")
 
         print("Number of human interventions: ", human_inter_counter)
         # end for enumerate(dl_test):                                            
@@ -842,19 +854,19 @@ class Client:
 def generate_non_iid_clients() -> list[Client]:
 
     truncate_windows = lambda x, y: (
-        x[: (len(x) // daics.BATCH_SIZE) * daics.BATCH_SIZE],
-        y[: (len(y) // daics.BATCH_SIZE) * daics.BATCH_SIZE]
+        x[: (len(x) // constants.daicsBATCH_SIZE) * constants.daicsBATCH_SIZE],
+        y[: (len(y) // constants.daicsBATCH_SIZE) * constants.daicsBATCH_SIZE]
     )
 
     clients: list[Client] = []
 
-    hf = h5py.File(name=OUTPUT_FILE, mode="r")
+    hf = h5py.File(name=constants.OUTPUT_FILE, mode="r")
 
     normal = hf["normal"]
     attack = hf["attack"]
 
     for index, key in enumerate(normal.keys(), start = 1):
-        printplus(f"Creating clients {index} / {len(normal)}", end="\r")
+        config.printplus(f"Creating clients {index} / {len(normal)}", end="\r")
 
         normal_data = normal[key]
         attack_data = attack[key]
@@ -918,7 +930,7 @@ def generate_non_iid_clients() -> list[Client]:
 
     hf.close()
 
-    printplus(" "*50, end="\r")
-    printplus(f"Created {len(clients)} clients")
+    config.printplus(" "*50, end="\r")
+    config.printplus(f"Created {len(clients)} clients")
 
     return clients

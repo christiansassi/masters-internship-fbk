@@ -171,6 +171,3 @@ THRESHOLD_NETWORK_BASENAME: str = "threshold_network"
 THRESHOLD_NETWORK: str = join(MODELS, THRESHOLD_NETWORK_BASENAME)
 
 CACHE: str = "cache"
-
-#? === Federated Learning
-N_CLIENTS: int = 15

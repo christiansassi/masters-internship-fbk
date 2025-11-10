@@ -1,5 +1,5 @@
 import config
-from constants import *
+import constants
 
 from os import makedirs
 
@@ -27,19 +27,19 @@ def clean_dataset(src: str) -> pd.DataFrame:
     })
 
     # Keep only sensors and actuators
-    df[GLOBAL_INPUTS] = df[GLOBAL_INPUTS].astype(float)
+    df[constants.GLOBAL_INPUTS] = df[constants.GLOBAL_INPUTS].astype(float)
 
     df["Normal/Attack"] = df["Normal/Attack"].map({"Normal": 0, "Attack": 1})
     df["Normal/Attack"] = df["Normal/Attack"].astype(int)
 
-    df = df[GLOBAL_INPUTS + ["Normal/Attack"]]
+    df = df[constants.GLOBAL_INPUTS + ["Normal/Attack"]]
 
     return df
 
 def normalize_datasets(*datasets: tuple[pd.DataFrame]) -> tuple[pd.DataFrame]:
 
     # Stack data across all datasets to compute global min/max
-    full_data = np.vstack([dataset[GLOBAL_INPUTS].to_numpy() for dataset in datasets])
+    full_data = np.vstack([dataset[constants.GLOBAL_INPUTS].to_numpy() for dataset in datasets])
 
     # Compute min/max
     min_v = full_data.min(axis=0)
@@ -56,10 +56,10 @@ def normalize_datasets(*datasets: tuple[pd.DataFrame]) -> tuple[pd.DataFrame]:
 
     results = []
     for dataset in datasets:
-        scaled = normalize(dataset[GLOBAL_INPUTS].to_numpy())
+        scaled = normalize(dataset[constants.GLOBAL_INPUTS].to_numpy())
         out = pd.DataFrame(
             data=np.hstack([scaled, dataset[["Normal/Attack"]].to_numpy()]),
-            columns=GLOBAL_INPUTS + ["Normal/Attack"]
+            columns=constants.GLOBAL_INPUTS + ["Normal/Attack"]
         )
         results.append(out)
 
@@ -67,7 +67,7 @@ def normalize_datasets(*datasets: tuple[pd.DataFrame]) -> tuple[pd.DataFrame]:
 
 def split_clients(df: pd.DataFrame) -> list[pd.DataFrame]:
 
-    clients = [df[stage + ["Normal/Attack"]].copy() for stage in STAGES]
+    clients = [df[stage + ["Normal/Attack"]].copy() for stage in constants.STAGES]
 
     attack_indices = df.index[df["Normal/Attack"] == 1].tolist()
 
@@ -82,12 +82,12 @@ def split_clients(df: pd.DataFrame) -> list[pd.DataFrame]:
     for client in clients:
         client["Normal/Attack"] = 0
 
-        for attack_index, attack_labels in enumerate(ATTACKS):
+        for attack_index, attack_labels in enumerate(constants.ATTACKS):
 
             # if not set(attack_labels) & set(client.columns):
             #     continue
             
-            if not (set(attack_labels) & set(client.columns)) & set(GLOBAL_OUTPUTS):
+            if not (set(attack_labels) & set(client.columns)) & set(constants.GLOBAL_OUTPUTS):
                 continue
 
             client.loc[attack_chunks[attack_index], "Normal/Attack"] = 1
@@ -98,8 +98,8 @@ def split_train_val_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, 
 
     total = len(df)
 
-    df_train = df[:int(TRAIN * total)]
-    df_val = df[len(df_train):len(df_train) + int(VAL * total)]
+    df_train = df[:int(constants.TRAIN * total)]
+    df_val = df[len(df_train):len(df_train) + int(constants.VAL * total)]
     df_test = df[len(df_train) + len(df_val):]
 
     return df_train, df_val, df_test
@@ -109,13 +109,13 @@ def prepare_sliding_windows(df_train: pd.DataFrame = None, df_val: pd.DataFrame 
     windows = []
 
     if df_train is not None:
-        windows.append((df_train, daics.TRAIN_STEP))
+        windows.append((df_train, constants.daics.TRAIN_STEP))
     
     if df_val is not None:
-        windows.append((df_val, daics.VAL_STEP))
+        windows.append((df_val, constants.daics.VAL_STEP))
     
     if df_test is not None:
-        windows.append((df_test, daics.TEST_STEP))
+        windows.append((df_test, constants.daics.TEST_STEP))
 
     results = []
 
@@ -130,9 +130,9 @@ def prepare_sliding_windows(df_train: pd.DataFrame = None, df_val: pd.DataFrame 
         # resulting in past time steps for prediction.
         # Finally, the windows are trimmed to be divisible by BATCH_SIZE.
 
-        input_indices = (np.arange(daics.SAMPLING_START, len(df), step) - daics.HORIZON - daics.WINDOW_PRESENT)[:, None] - np.arange(1, daics.WINDOW_PAST + 1)
+        input_indices = (np.arange(constants.daics.SAMPLING_START, len(df), step) - constants.daics.HORIZON - constants.daics.WINDOW_PRESENT)[:, None] - np.arange(1, constants.daics.WINDOW_PAST + 1)
         input_indices = np.sort(input_indices)
-        input_indices = input_indices[: (len(input_indices) // daics.BATCH_SIZE) * daics.BATCH_SIZE, :]
+        input_indices = input_indices[: (len(input_indices) // constants.daics.BATCH_SIZE) * constants.daics.BATCH_SIZE, :]
 
         results.append(input_indices)
 
@@ -144,9 +144,9 @@ def prepare_sliding_windows(df_train: pd.DataFrame = None, df_val: pd.DataFrame 
         # resulting in the target indices to be predicted.
         # Finally, the windows are trimmed to be divisible by BATCH_SIZE.
 
-        output_indices = np.arange(daics.SAMPLING_START, len(df), step)[:, None] - np.arange(1, daics.WINDOW_PRESENT + 1)
+        output_indices = np.arange(constants.daics.SAMPLING_START, len(df), step)[:, None] - np.arange(1, constants.daics.WINDOW_PRESENT + 1)
         output_indices = np.sort(output_indices)
-        output_indices = output_indices[: (len(output_indices) // daics.BATCH_SIZE) * daics.BATCH_SIZE, :]
+        output_indices = output_indices[: (len(output_indices) // constants.daics.BATCH_SIZE) * constants.daics.BATCH_SIZE, :]
 
         results.append(output_indices)
 
@@ -155,11 +155,11 @@ def prepare_sliding_windows(df_train: pd.DataFrame = None, df_val: pd.DataFrame 
 if __name__ == "__main__":
 
     # Create output dir if it doesn't exist
-    makedirs(name=OUTPUT_DIR, exist_ok=True)
+    makedirs(name=constants.OUTPUT_DIR, exist_ok=True)
 
     # Prepare dataset
-    df_normal = clean_dataset(src=INPUT_NORMAL_FILE)
-    df_attack = clean_dataset(src=INPUT_ATTACK_FILE)
+    df_normal = clean_dataset(src=constants.INPUT_NORMAL_FILE)
+    df_attack = clean_dataset(src=constants.INPUT_ATTACK_FILE)
 
     df_normal, df_attack = normalize_datasets(df_normal, df_attack)
 
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     clients_normal = split_clients(df=df_normal)
     clients_attack = split_clients(df=df_attack)
 
-    hf = h5py.File(name=OUTPUT_FILE, mode="w")
+    hf = h5py.File(name=constants.OUTPUT_FILE, mode="w")
     group_normal = hf.create_group(f"normal")
     group_attack = hf.create_group(f"attack")
 
@@ -189,7 +189,7 @@ if __name__ == "__main__":
         group = group_normal.create_group(f"client-{index}")
         group.attrs["columns"] = list(client.columns)
         group.attrs["inputs"] = [column for column in list(client.columns) if column != "Normal/Attack"]
-        group.attrs["outputs"] = [column for column in list(client.columns) if column in GLOBAL_OUTPUTS]
+        group.attrs["outputs"] = [column for column in list(client.columns) if column in constants.GLOBAL_OUTPUTS]
 
         group.create_dataset("df_normal_train", data=df_normal_train.values)
         group.create_dataset("df_normal_val", data=df_normal_val.values)
@@ -214,7 +214,7 @@ if __name__ == "__main__":
         group = group_attack.create_group(f"client-{index}")
         group.attrs["columns"] = list(client.columns)
         group.attrs["inputs"] = [column for column in list(client.columns) if column != "Normal/Attack"]
-        group.attrs["outputs"] = [column for column in list(client.columns) if column in GLOBAL_OUTPUTS]
+        group.attrs["outputs"] = [column for column in list(client.columns) if column in constants.GLOBAL_OUTPUTS]
 
         group.create_dataset("df_attack", data=client.values)
 
