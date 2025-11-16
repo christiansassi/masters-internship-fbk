@@ -4,7 +4,6 @@
 
 # Directories
 **/cache
-**/clients
 **/datasets
 **/keys
 **/logs
