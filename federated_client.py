@@ -393,7 +393,7 @@ class Client:
 
         return -eval_loss
 
-    def train_pred_error_model(self, ):
+    def train_pred_error_model(self):
         
         self.model_f_extractor.to(config.DEVICE)
         
@@ -484,6 +484,7 @@ class Client:
             # optimizer = torch.optim.AdamW(pred_error_model.parameters(), lr=constants.daics.LEARNING_RATE, betas=(0.9, 0.9), weight_decay=constants.daics.WEIGHT_DECAY)
 
             min_train_loss = float("inf")
+            best_pred_error_model = deepcopy(pred_error_model)
 
             for epoch in range(constants.daics.THRESHOLD_EPOCHS):
                 
@@ -532,8 +533,10 @@ class Client:
                 if train_loss < min_train_loss:
                     min_train_loss = train_loss
 
-                    best_pred_error_models.append(deepcopy(pred_error_model.state_dict()))
+                    best_pred_error_model.load_state_dict(deepcopy(pred_error_model.state_dict()))
             
+            best_pred_error_models.append(deepcopy(best_pred_error_model.state_dict()))
+
             losses.append(min_train_loss)
         
         for pred_error_model, best_pred_error_model in zip(self.pred_error_models, best_pred_error_models):

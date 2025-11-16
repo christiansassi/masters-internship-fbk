@@ -53,8 +53,6 @@ if __name__ == "__main__":
         session_path = join(constants.THRESHOLD_NETWORK, session_id)
         makedirs(name=session_path, exist_ok=True)
 
-        session_id = str(int(datetime.now().timestamp()))
-
         model_path = join(session_path, f"{constants.THRESHOLD_NETWORK_BASENAME}.pt")
         model_dict = {}
 
@@ -64,6 +62,8 @@ if __name__ == "__main__":
 
         data = []
 
+        config.printplus("")
+
         for index, client in enumerate(clients, start=1):
 
             config.printplus(f"Client {index} / {len(clients)}")
@@ -71,11 +71,16 @@ if __name__ == "__main__":
             client.set_model_f_extractor(wide_deep_network["model_f_extractor"])
             client.set_model_sensors(wide_deep_network["model_sensors"][str(client)])
 
-            train_loss = client.train_pred_error_model()
+            train_losses = client.train_pred_error_model()
 
             model_dict[str(client)] = [deepcopy(pred_error_model.state_dict()) for pred_error_model in client.pred_error_models]
+            
+            for output_mask, loss in zip(client.output_mask, train_losses):
 
-            data.append([f"{'-'.join(sorted(client.inputs))}", np.mean(train_loss)])
+                stage = [client.inputs[index] for index in output_mask]
+                stage = "-".join(sorted(stage))
+                
+                data.append([f"{str(client)}_{stage}", loss])
 
         torch.save(model_dict, model_path)
 
