@@ -11,10 +11,8 @@
 **/old_versions
 **/wandb
 
-./checkpoints
+plots/project/aggregated_data
+plots/project/raw_data
 
 # Extensions
 **.env
-
-# Files
-daics.py

@@ -94,17 +94,3 @@ if __name__ == "__main__":
 
         run.log({"threshold_network": bar_plot})
         run.finish()
-
-    # Simulation
-    if config.SIMULATION:
-        
-        wide_deep_network = torch.load(join(constants.WIDE_DEEP_NETWORK, f"{constants.WIDE_DEEP_NETWORK_BASENAME}.pt"), map_location=constants.DEVICE)
-        threshold_network = torch.load(join(constants.THRESHOLD_NETWORK, f"{constants.THRESHOLD_NETWORK_BASENAME}.pt"), map_location=constants.DEVICE)
-        
-        client = max(clients, key=lambda x: len(x.inputs))
-        client.set_model_f_extractor(wide_deep_network["model_f_extractor"])
-        client.set_model_sensors(wide_deep_network["model_sensors"][str(client)])
-        client.set_pred_error_models(threshold_network[str(client)])
-        client.test()
-    
-    
