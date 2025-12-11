@@ -16,3 +16,6 @@ plots/project/raw_data
 
 # Extensions
 **.env
+
+# Files
+plots/aggregate_raw_data.py
